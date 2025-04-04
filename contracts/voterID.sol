@@ -3,30 +3,36 @@ pragma solidity ^0.8.0;
 
 contract VoterID {
     struct Voter {
-        string name;
-        uint256 dob;
-        string voterIdHash;
+        bytes32 nameHash;
+        bytes32 aadharHash;
         bool isVerified;
-        string aadharNumber;
-        string residentialAddress;
         uint256 registrationTimestamp;
         uint256 lastVerifiedTimestamp;
     }
 
+    // Custom errors for better debugging
+    error RegistrationClosed();
+    error AlreadyRegistered();
+    error AadharAlreadyRegistered();
+    error EmptyHash();
+    error VoterNotRegistered();
+    error VoterAlreadyVerified();
+    error InvalidAddress();
+    error NotAdmin();
+
     mapping(address => Voter) public voters;
-    mapping(string => bool) private usedAadharNumbers;
-    mapping(string => bool) private usedVoterIds;
+    mapping(bytes32 => bool) private usedAadharHashes;
     
     address public admin;
     uint256 public voterCount;
     bool public registrationOpen;
 
-    event VoterRegistered(address indexed voter, string name, uint256 timestamp);
+    event VoterRegistered(address indexed voter, bytes32 nameHash, bytes32 aadharHash, uint256 timestamp);
     event VoterVerified(address indexed voter, uint256 timestamp);
     event RegistrationStatusChanged(bool isOpen);
 
     modifier onlyAdmin() {
-        require(msg.sender == admin, "Only admin can perform this action");
+        if (msg.sender != admin) revert NotAdmin();
         _;
     }
 
@@ -36,39 +42,66 @@ contract VoterID {
         voterCount = 0;
     }
 
+    // Function to check if bytes32 is empty/zero
+    function isEmptyBytes32(bytes32 value) internal pure returns (bool) {
+        return value == bytes32(0);
+    }
+
+    // Regular registration function (voter self-registers)
     function registerVoter(
-        string memory _name, 
-        uint256 _dob, 
-        string memory _voterIdHash,
-        string memory _aadharNumber,
-        string memory _residentialAddress
+        bytes32 _nameHash,
+        bytes32 _aadharHash
     ) public {
-        require(registrationOpen, "Voter registration is currently closed");
-        require(bytes(voters[msg.sender].voterIdHash).length == 0, "Already registered");
-        require(!usedAadharNumbers[_aadharNumber], "Aadhar number already registered");
-        require(!usedVoterIds[_voterIdHash], "Voter ID already registered");
+        if (!registrationOpen) revert RegistrationClosed();
+        if (voters[msg.sender].registrationTimestamp != 0) revert AlreadyRegistered();
+        if (usedAadharHashes[_aadharHash]) revert AadharAlreadyRegistered();
+        if (isEmptyBytes32(_nameHash)) revert EmptyHash();
+        if (isEmptyBytes32(_aadharHash)) revert EmptyHash();
         
-        usedAadharNumbers[_aadharNumber] = true;
-        usedVoterIds[_voterIdHash] = true;
+        usedAadharHashes[_aadharHash] = true;
         
         voters[msg.sender] = Voter(
-            _name, 
-            _dob, 
-            _voterIdHash, 
-            false, 
-            _aadharNumber, 
-            _residentialAddress,
+            _nameHash,
+            _aadharHash,
+            false,
             block.timestamp,
             0
         );
         
         voterCount++;
-        emit VoterRegistered(msg.sender, _name, block.timestamp);
+        emit VoterRegistered(msg.sender, _nameHash, _aadharHash, block.timestamp);
+    }
+
+    // Admin function to register a voter for a specific address
+    function registerVoterByAdmin(
+        address _voterAddress,
+        bytes32 _nameHash,
+        bytes32 _aadharHash
+    ) public onlyAdmin {
+        if (!registrationOpen) revert RegistrationClosed();
+        if (voters[_voterAddress].registrationTimestamp != 0) revert AlreadyRegistered();
+        if (usedAadharHashes[_aadharHash]) revert AadharAlreadyRegistered();
+        if (isEmptyBytes32(_nameHash)) revert EmptyHash();
+        if (isEmptyBytes32(_aadharHash)) revert EmptyHash();
+        if (_voterAddress == address(0)) revert InvalidAddress();
+        
+        usedAadharHashes[_aadharHash] = true;
+        
+        voters[_voterAddress] = Voter(
+            _nameHash,
+            _aadharHash,
+            false,
+            block.timestamp,
+            0
+        );
+        
+        voterCount++;
+        emit VoterRegistered(_voterAddress, _nameHash, _aadharHash, block.timestamp);
     }
 
     function verifyVoter(address _voter) public onlyAdmin {
-        require(bytes(voters[_voter].voterIdHash).length > 0, "Voter not registered");
-        require(!voters[_voter].isVerified, "Voter already verified");
+        if (voters[_voter].registrationTimestamp == 0) revert VoterNotRegistered();
+        if (voters[_voter].isVerified) revert VoterAlreadyVerified();
         
         voters[_voter].isVerified = true;
         voters[_voter].lastVerifiedTimestamp = block.timestamp;
@@ -86,26 +119,24 @@ contract VoterID {
     }
     
     function getVoterDetails(address _voter) public view returns (
-        string memory name,
-        uint256 dob,
+        bytes32 nameHash,
+        bytes32 aadharHash,
         bool isVerified,
-        string memory residentialAddress,
         uint256 registrationTimestamp,
         uint256 lastVerifiedTimestamp
     ) {
         Voter memory voter = voters[_voter];
         return (
-            voter.name,
-            voter.dob,
+            voter.nameHash,
+            voter.aadharHash,
             voter.isVerified,
-            voter.residentialAddress,
             voter.registrationTimestamp,
             voter.lastVerifiedTimestamp
         );
     }
     
     function transferAdmin(address _newAdmin) public onlyAdmin {
-        require(_newAdmin != address(0), "Invalid address");
+        if (_newAdmin == address(0)) revert InvalidAddress();
         admin = _newAdmin;
     }
 }

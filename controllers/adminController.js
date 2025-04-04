@@ -105,17 +105,38 @@ const getDashboardStats = async (req, res) => {
     // Get state distribution
     const stateDistribution = await Voter.aggregate([
       { 
-        $match: { 
-          state: { $ne: null, $ne: "" } 
-        } 
+        $project: {
+          // Use coalesce to replace null/empty state with "Unknown"
+          state: { 
+            $cond: [
+              { $or: [
+                { $eq: ["$state", null] },
+                { $eq: ["$state", ""] }
+              ]},
+              "Unknown",
+              "$state"
+            ]
+          },
+          isVerified: 1 // Keep the isVerified field
+        }
       },
       {
         $group: {
           _id: "$state",
-          count: { $sum: 1 }
+          total: { $sum: 1 },
+          verified: { 
+            $sum: { 
+              $cond: [{ $eq: ["$isVerified", true] }, 1, 0] 
+            } 
+          },
+          unverified: { 
+            $sum: { 
+              $cond: [{ $eq: ["$isVerified", false] }, 1, 0] 
+            } 
+          }
         }
       },
-      { $sort: { count: -1 } }
+      { $sort: { total: -1 } }
     ]);
     
     // Get admin activity (recent 10)
@@ -164,10 +185,17 @@ const getDashboardStats = async (req, res) => {
         ageDistribution
       });
       
-      // Convert state distribution to Map
+      // Convert state distribution to Map for this specific case
       const stateWiseDistribution = new Map();
       stateDistribution.forEach(item => {
-        stateWiseDistribution.set(item._id, item.count);
+        // Skip null keys or convert them to a string
+        const stateKey = (item._id !== null && item._id !== undefined) ? item._id : "Unknown";
+        
+        // Handle the count value - some aggregations return count, others return total
+        const count = item.count !== undefined ? item.count : 
+                      (item.total !== undefined ? item.total : 0);
+        
+        stateWiseDistribution.set(stateKey, count);
       });
       
       systemStats.stateWiseDistribution = stateWiseDistribution;
@@ -374,9 +402,20 @@ const getStateDistribution = async (req, res) => {
   try {
     const stateDistribution = await Voter.aggregate([
       { 
-        $match: { 
-          state: { $ne: null, $ne: "" } 
-        } 
+        $project: {
+          // Use coalesce to replace null/empty state with "Unknown"
+          state: { 
+            $cond: [
+              { $or: [
+                { $eq: ["$state", null] },
+                { $eq: ["$state", ""] }
+              ]},
+              "Unknown",
+              "$state"
+            ]
+          },
+          isVerified: 1 // Keep the isVerified field
+        }
       },
       {
         $group: {

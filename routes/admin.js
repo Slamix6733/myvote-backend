@@ -32,7 +32,7 @@ const isAdmin = async (req, res, next) => {
 };
 
 // Dashboard statistics
-router.get('/dashboard', isAdmin, getDashboardStats);
+router.get('/stats', isAdmin, getDashboardStats);
 
 // Get all voters with pagination
 router.get('/voters', isAdmin, getAllVoters);
