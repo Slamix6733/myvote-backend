@@ -1,5 +1,11 @@
 const mongoose = require('mongoose');
 
+// Schema options
+const schemaOptions = {
+  timestamps: true,
+  autoIndex: false  // Disable automatic indexing
+};
+
 const VoterSchema = new mongoose.Schema({
   blockchainAddress: {
     type: String,
@@ -7,88 +13,59 @@ const VoterSchema = new mongoose.Schema({
     unique: true,
     trim: true
   },
-  name: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  dob: {
-    type: Date,
+  // Encrypted fields with personal information
+  encryptedData: {
+    type: Object,
     required: true
   },
-  aadharNumber: {
-    type: String,
-    required: true,
-    unique: true,
-    trim: true
+  // Raw data (temporary, for debugging purposes)
+  rawData: {
+    name: String,
+    aadharNumber: String  // No unique constraint here, we'll use manual indexing
   },
-  voterIdHash: {
-    type: String,
-    required: true,
-    unique: true,
-    trim: true
+  // Blockchain-related data (will be used later)
+  blockchain: {
+    nameHash: String,
+    aadharHash: String,  // No unique constraint here
+    txHash: String,
+    registrationTimestamp: Number,
+    verificationTxHash: String,
+    lastVerifiedTimestamp: Number
   },
-  residentialAddress: {
-    type: String,
-    required: true,
-    trim: true
-  },
+  // Basic profile info (not sensitive)
   district: {
-    type: String,
-    trim: true
-  },
-  state: {
-    type: String,
-    trim: true
-  },
-  pincode: {
-    type: String,
-    trim: true
+    type: String
   },
   gender: {
-    type: String,
-    enum: ['Male', 'Female', 'Other', 'Prefer not to say'],
-    default: 'Prefer not to say'
+    type: String
   },
-  contactPhone: {
-    type: String,
-    trim: true
+  dob: {
+    type: Date
   },
-  contactEmail: {
-    type: String,
-    trim: true,
-    lowercase: true
+  // Document information
+  aadharImage: {
+    type: String
   },
+  // Status information
   isVerified: {
     type: Boolean,
     default: false
   },
-  registrationDate: {
-    type: Date,
-    default: Date.now
-  },
   verificationDate: {
     type: Date
   },
-  profilePhotoUrl: {
-    type: String,
-    trim: true
+  // Additional metadata
+  verificationNotes: {
+    type: String
   },
-  transactionHash: {
-    type: String,
-    trim: true
-  },
-  blockNumber: {
-    type: Number
+  verifiedBy: {
+    type: String
   }
-}, {
-  timestamps: true
-});
+}, schemaOptions);
 
-// Create index for faster queries
-VoterSchema.index({ blockchainAddress: 1 });
-VoterSchema.index({ aadharNumber: 1 });
-VoterSchema.index({ voterIdHash: 1 });
+// Manually create indexes for faster queries and uniqueness constraints
+VoterSchema.index({ blockchainAddress: 1 }, { unique: true });
+VoterSchema.index({ 'rawData.aadharNumber': 1 }, { unique: true, sparse: true });
 VoterSchema.index({ isVerified: 1 });
 
 module.exports = mongoose.model('Voter', VoterSchema); 

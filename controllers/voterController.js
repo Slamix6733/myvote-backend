@@ -5,138 +5,168 @@ const {
   checkVoterStatus,
   getVoterDetails
 } = require('../utils/blockchain');
+const { 
+  encryptSensitiveData, 
+  decryptSensitiveData, 
+  createBlockchainHashes 
+} = require('../utils/crypto');
 const Voter = require('../models/Voter');
 const AdminLog = require('../models/AdminLog');
 const { logAdminActivity } = require('./adminController');
 
-// Register a new voter
+// Register a voter (Step 1)
 const registerVoter = async (req, res) => {
+  console.log("Received voter registration request:", req.body);
   try {
+    // Extract fields from request body
     const { 
-      address, 
       name, 
-      dob, 
-      voterIdHash, 
-      aadharNumber, 
-      residentialAddress,
-      district,
+      aadharNumber: reqAadharNumber,
+      address, // This is the wallet address
+      phoneNumber, 
+      email, 
+      city,
       state,
-      pincode,
-      gender,
-      contactPhone,
-      contactEmail,
-      profilePhotoUrl
+      gender, 
+      dob,
+      aadharImageUrl
     } = req.body;
     
-    // Validate inputs
-    if (!address || !name || !dob || !voterIdHash || !aadharNumber || !residentialAddress) {
-      return res.status(400).json({ error: "Required fields are missing" });
+    // Map to the expected format and ensure values
+    const blockchainAddress = address;
+    const district = city && state ? `${city}, ${state}` : "";
+    // Ensure we have the aadharNumber (could be named differently in request)
+    const aadharNumber = reqAadharNumber || req.body.aadhaar || req.body.aadhar;
+    
+    // Validate required fields with detailed error messages
+    if (!name) {
+      return res.status(400).json({ error: "Missing required fields", details: "name is required" });
     }
     
-    // Validate address format
-    if (!ethers.isAddress(address)) {
-      return res.status(400).json({ error: "Invalid Ethereum address" });
+    if (!aadharNumber) {
+      return res.status(400).json({ error: "Missing required fields", details: "aadharNumber is required" });
     }
     
-    // Check if voter already exists in MongoDB
-    const existingVoter = await Voter.findOne({
-      $or: [
-        { blockchainAddress: address },
-        { aadharNumber },
-        { voterIdHash }
-      ]
-    });
+    if (!blockchainAddress) {
+      return res.status(400).json({ error: "Missing required fields", details: "address is required" });
+    }
     
-    if (existingVoter) {
-      let errorMessage = "Registration failed. ";
+    // Validate Ethereum address format
+    if (!blockchainAddress.startsWith('0x') || blockchainAddress.length !== 42) {
+      console.log("Invalid Ethereum address format:", blockchainAddress);
+      return res.status(400).json({ error: "Invalid Ethereum address format" });
+    }
+    
+    try {
+      // Create proper hashes for blockchain storage
+      console.log("Creating blockchain hashes");
+      const { nameHash, aadharHash } = createBlockchainHashes({ name, aadharNumber });
+      console.log("Generated hashes:", { 
+        nameHash, 
+        aadharHash,
+        nameHashLength: nameHash.length,
+        aadharHashLength: aadharHash.length 
+      });
       
-      if (existingVoter.blockchainAddress === address) {
-        errorMessage += "Address already registered.";
-      } else if (existingVoter.aadharNumber === aadharNumber) {
-        errorMessage += "Aadhar number already registered.";
-      } else if (existingVoter.voterIdHash === voterIdHash) {
-        errorMessage += "Voter ID already registered.";
+      // Check if voter already exists in MongoDB
+      const existingVoter = await Voter.findOne({
+        $or: [
+          { blockchainAddress: blockchainAddress },
+          { 'rawData.aadharNumber': aadharNumber }
+        ]
+      });
+      
+      if (existingVoter) {
+        console.log("Voter already exists in MongoDB:", {
+          id: existingVoter._id,
+          blockchainAddress: existingVoter.blockchainAddress
+        });
+        return res.status(400).json({ error: "Voter already registered" });
       }
       
-      return res.status(409).json({ error: errorMessage });
-    }
-    
-    // Convert DOB to timestamp if it's a date string
-    let dobTimestamp = dob;
-    if (typeof dob === 'string') {
-      dobTimestamp = Math.floor(new Date(dob).getTime() / 1000);
-      if (isNaN(dobTimestamp)) {
-        return res.status(400).json({ error: "Invalid date of birth format" });
+      // Attempt to register on blockchain
+      let blockchainResult = null;
+      try {
+        console.log("Attempting blockchain registration");
+        blockchainResult = await registerVoterOnBlockchain(nameHash, aadharHash, blockchainAddress);
+        console.log("Blockchain registration successful:", blockchainResult?.hash || "No hash returned");
+      } catch (blockchainError) {
+        console.warn("Blockchain registration skipped/failed:", blockchainError.message);
+        // We'll continue with MongoDB registration anyway
       }
+      
+      // Encrypt sensitive data for MongoDB storage
+      console.log("Encrypting sensitive data for MongoDB");
+      try {
+        const encryptedData = encryptSensitiveData({
+          name,
+          aadharNumber,
+          phoneNumber,
+          email
+        });
+        
+        // Check if aadhar image was uploaded
+        let aadharImagePath = aadharImageUrl;
+        if (req.file) {
+          aadharImagePath = req.file.path;
+          console.log("Aadhar image uploaded via file upload:", aadharImagePath);
+        }
+        console.log("Using aadhar image path:", aadharImagePath);
+        
+        // Create MongoDB record
+        console.log("Creating MongoDB record");
+        const voter = new Voter({
+          blockchainAddress,
+          encryptedData,
+          rawData: {
+            name: name,
+            aadharNumber: aadharNumber
+          },
+          blockchain: blockchainResult ? {
+            nameHash,
+            aadharHash,
+            txHash: blockchainResult.hash,
+            registrationTimestamp: Date.now()
+          } : null,
+          district,
+          gender,
+          dob: new Date(dob),
+          aadharImage: aadharImagePath
+        });
+        
+        await voter.save();
+        
+        console.log("Voter registration complete");
+        return res.status(201).json({
+          message: "Voter registered successfully",
+          blockchainAddress,
+          blockchainTxHash: blockchainResult?.hash || null,
+          onBlockchain: !!blockchainResult
+        });
+      } catch (encryptionError) {
+        console.error("Encryption or database error:", encryptionError);
+        return res.status(500).json({ 
+          error: "Registration failed", 
+          details: encryptionError.message 
+        });
+      }
+    } catch (error) {
+      console.error("Registration error:", error);
+      return res.status(500).json({ 
+        error: "Registration failed", 
+        details: error.message 
+      });
     }
-    
-    // Call blockchain function to register voter
-    const blockchainResponse = await registerVoterOnBlockchain(
-      address, 
-      name, 
-      dobTimestamp, 
-      voterIdHash, 
-      aadharNumber, 
-      residentialAddress
-    );
-    
-    // Create MongoDB record
-    const newVoter = new Voter({
-      blockchainAddress: address,
-      name,
-      dob: new Date(dob),
-      voterIdHash,
-      aadharNumber,
-      residentialAddress,
-      district,
-      state,
-      pincode,
-      gender,
-      contactPhone,
-      contactEmail,
-      profilePhotoUrl,
-      isVerified: false,
-      registrationDate: new Date(),
-      transactionHash: blockchainResponse.hash,
-      blockNumber: blockchainResponse.blockNumber
-    });
-    
-    await newVoter.save();
-    
-    res.status(201).json({
-      message: "Voter registered successfully",
-      transactionHash: blockchainResponse.hash,
-      blockNumber: blockchainResponse.blockNumber,
-      voter: newVoter
-    });
   } catch (error) {
-    console.error("Registration error:", error);
-    
-    // Handle specific blockchain errors
-    if (error.message && error.message.includes("Already registered")) {
-      return res.status(409).json({ error: "Voter already registered on blockchain" });
-    }
-    
-    if (error.message && error.message.includes("registration is currently closed")) {
-      return res.status(403).json({ error: "Voter registration is currently closed" });
-    }
-    
-    if (error.message && error.message.includes("Aadhar number already registered")) {
-      return res.status(409).json({ error: "Aadhar number already registered on blockchain" });
-    }
-    
-    if (error.message && error.message.includes("Voter ID already registered")) {
-      return res.status(409).json({ error: "Voter ID already registered on blockchain" });
-    }
-    
-    res.status(500).json({ error: "Registration failed", details: error.message });
+    console.error("Voter registration error:", error);
+    return res.status(500).json({ error: "Registration failed", details: error.message });
   }
 };
 
 // Verify a voter (admin only)
 const verifyVoter = async (req, res) => {
   try {
-    const { adminAddress, voterAddress } = req.body;
+    const { adminAddress, voterAddress, verificationNotes } = req.body;
     
     // Validate inputs
     if (!adminAddress || !voterAddress) {
@@ -153,17 +183,37 @@ const verifyVoter = async (req, res) => {
       return res.status(403).json({ error: "Unauthorized. Not an admin address." });
     }
     
-    // Call blockchain function to verify voter
-    const blockchainResponse = await verifyVoterOnBlockchain(voterAddress);
+    // Try blockchain verification first if possible
+    let blockchainResult = null;
+    try {
+      console.log("Attempting blockchain verification");
+      blockchainResult = await verifyVoterOnBlockchain(voterAddress);
+      console.log("Blockchain verification successful:", blockchainResult?.hash || "No hash returned");
+    } catch (blockchainError) {
+      console.warn("Blockchain verification skipped/failed:", blockchainError.message);
+      // We'll continue with MongoDB verification anyway
+    }
     
     // Update MongoDB record
     const voter = await Voter.findOne({ blockchainAddress: voterAddress });
     
-    if (voter) {
-      voter.isVerified = true;
-      voter.verificationDate = new Date();
-      await voter.save();
+    if (!voter) {
+      return res.status(404).json({ error: "Voter not found" });
     }
+    
+    voter.isVerified = true;
+    voter.verificationDate = new Date();
+    voter.verificationNotes = verificationNotes || "";
+    voter.verifiedBy = adminAddress;
+    
+    // Add blockchain verification details if available
+    if (blockchainResult && blockchainResult.hash) {
+      voter.blockchain = voter.blockchain || {};
+      voter.blockchain.verificationTxHash = blockchainResult.hash;
+      voter.blockchain.lastVerifiedTimestamp = Date.now();
+    }
+    
+    await voter.save();
     
     // Log admin activity
     await logAdminActivity(
@@ -171,17 +221,15 @@ const verifyVoter = async (req, res) => {
       'VERIFY_VOTER',
       `Admin verified voter ${voterAddress}`,
       voterAddress,
-      blockchainResponse.hash,
+      blockchainResult?.hash || null,
       'SUCCESS',
-      { blockNumber: blockchainResponse.blockNumber },
+      { message: "Direct database verification (blockchain verification)" },
       req.ip
     );
     
     res.json({
       message: "Voter verified successfully",
-      transactionHash: blockchainResponse.hash,
-      blockNumber: blockchainResponse.blockNumber,
-      voter
+      verificationDate: voter.verificationDate
     });
   } catch (error) {
     console.error("Verification error:", error);
@@ -256,6 +304,7 @@ const checkVoterStatusController = async (req, res) => {
 const getVoterDetailsController = async (req, res) => {
   try {
     const { address } = req.params;
+    const { adminAddress } = req.query;
     
     // Validate address format
     if (!address || !ethers.isAddress(address)) {
@@ -266,11 +315,29 @@ const getVoterDetailsController = async (req, res) => {
     const mongoVoter = await Voter.findOne({ blockchainAddress: address });
     
     if (mongoVoter) {
-      return res.json({
+      // Determine if sensitive data should be decrypted
+      // Only decrypt for the owner of the address or an admin
+      const isAuthorized = 
+        adminAddress && 
+        adminAddress.toLowerCase() === process.env.ADMIN_ADDRESS.toLowerCase();
+      const isOwner = req.headers['x-voter-address'] === address;
+      
+      let responseData = {
         address,
-        details: mongoVoter,
+        isVerified: mongoVoter.isVerified,
+        registrationDate: mongoVoter.registrationDate,
+        verificationDate: mongoVoter.verificationDate || null,
+        aadharImageUrl: mongoVoter.aadharImageUrl,
         source: "database"
-      });
+      };
+      
+      // If admin or owner, include decrypted data
+      if (isAuthorized || isOwner) {
+        const decryptedData = decryptSensitiveData(mongoVoter.encryptedData);
+        responseData.profile = decryptedData;
+      }
+      
+      return res.json(responseData);
     }
     
     // If not in MongoDB, get from blockchain
@@ -278,74 +345,69 @@ const getVoterDetailsController = async (req, res) => {
     
     // Format data
     const formattedDetails = {
-      name: blockchainDetails.name,
-      dob: new Date(blockchainDetails.dob * 1000).toISOString().split('T')[0],
+      address,
       isVerified: blockchainDetails.isVerified,
-      residentialAddress: blockchainDetails.residentialAddress,
       registrationDate: new Date(blockchainDetails.registrationTimestamp * 1000).toISOString(),
       verificationDate: blockchainDetails.lastVerifiedTimestamp ? 
-        new Date(blockchainDetails.lastVerifiedTimestamp * 1000).toISOString() : null
+        new Date(blockchainDetails.lastVerifiedTimestamp * 1000).toISOString() : null,
+      source: "blockchain"
     };
     
-    res.json({
-      address,
-      details: formattedDetails,
-      source: "blockchain"
-    });
+    res.json(formattedDetails);
   } catch (error) {
     console.error("Details fetch error:", error);
     res.status(500).json({ error: "Failed to fetch voter details", details: error.message });
   }
 };
 
-// Update voter profile (extended data only)
-const updateVoterProfile = async (req, res) => {
+// Get voter data by admin (with decrypted data)
+const getVoterByAdmin = async (req, res) => {
   try {
     const { address } = req.params;
-    const updates = req.body;
+    const adminAddress = req.headers['x-admin-address'] || req.query.adminAddress;
     
-    // Validate address format
+    // Validate inputs
     if (!address || !ethers.isAddress(address)) {
-      return res.status(400).json({ error: "Invalid Ethereum address" });
+      return res.status(400).json({ error: "Invalid voter address" });
     }
     
-    // Find voter in MongoDB
+    if (!adminAddress || !ethers.isAddress(adminAddress)) {
+      return res.status(400).json({ error: "Invalid admin address" });
+    }
+    
+    // Verify admin
+    if (adminAddress.toLowerCase() !== process.env.ADMIN_ADDRESS.toLowerCase()) {
+      return res.status(403).json({ error: "Unauthorized. Not an admin address." });
+    }
+    
+    // Get voter from MongoDB
     const voter = await Voter.findOne({ blockchainAddress: address });
     
     if (!voter) {
       return res.status(404).json({ error: "Voter not found" });
     }
     
-    // Only allow updates to extended profile fields
-    const allowedUpdates = [
-      'district', 
-      'state', 
-      'pincode', 
-      'gender', 
-      'contactPhone', 
-      'contactEmail', 
-      'profilePhotoUrl'
-    ];
+    // Decrypt sensitive data
+    const decryptedData = decryptSensitiveData(voter.encryptedData);
     
-    // Filter out disallowed updates
-    const filteredUpdates = {};
-    Object.keys(updates).forEach(key => {
-      if (allowedUpdates.includes(key)) {
-        filteredUpdates[key] = updates[key];
-      }
-    });
+    // Format response
+    const response = {
+      blockchainAddress: voter.blockchainAddress,
+      profile: decryptedData,
+      isVerified: voter.isVerified,
+      registrationDate: voter.registrationDate,
+      verificationDate: voter.verificationDate,
+      aadharImageUrl: voter.aadharImageUrl,
+      transactionHash: voter.transactionHash,
+      blockNumber: voter.blockNumber,
+      verificationNotes: voter.verificationNotes,
+      verifiedBy: voter.verifiedBy
+    };
     
-    // Update voter
-    Object.assign(voter, filteredUpdates);
-    await voter.save();
-    
-    res.json({
-      message: "Voter profile updated successfully",
-      voter
-    });
+    res.json(response);
   } catch (error) {
-    console.error("Update error:", error);
-    res.status(500).json({ error: "Profile update failed", details: error.message });
+    console.error("Admin voter fetch error:", error);
+    res.status(500).json({ error: "Failed to fetch voter data", details: error.message });
   }
 };
 
@@ -354,5 +416,5 @@ module.exports = {
   verifyVoter,
   checkVoterStatus: checkVoterStatusController,
   getVoterDetails: getVoterDetailsController,
-  updateVoterProfile
+  getVoterByAdmin
 }; 

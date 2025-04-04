@@ -92,6 +92,399 @@ npm run dev
 
 You should see a message indicating that the server is running on http://localhost:5000.
 
+## 📚 API Documentation
+
+### Authentication
+
+Most admin endpoints require authentication using the admin Ethereum address. Include the admin address in the request headers:
+
+```
+x-admin-address: 0x6E5ceE75158A189939F6d945351dBD86370672AD
+```
+
+### Voter Endpoints
+
+#### Register a Voter
+
+```http
+POST /api/voters/register
+```
+
+**Request Body:**
+
+```json
+{
+  "address": "0x851BdD62Fd471a652CCFb4a0aa65E41e33B0508C",
+  "name": "John Doe",
+  "gender": "Male",
+  "dob": "1990-01-01",
+  "city": "Mumbai",
+  "state": "Maharashtra",
+  "aadharNumber": "123456789012",
+  "phoneNumber": "9876543210",
+  "email": "johndoe@example.com",
+  "aadharImageUrl": "/uploads/example.png"
+}
+```
+
+**Response (Success - 201):**
+
+```json
+{
+  "message": "Voter registered successfully",
+  "blockchainAddress": "0x851BdD62Fd471a652CCFb4a0aa65E41e33B0508C",
+  "blockchainTxHash": "0xa1b2c3...",
+  "onBlockchain": true
+}
+```
+
+**Response (Error - 400/500):**
+
+```json
+{
+  "error": "Error message",
+  "details": "Detailed error information"
+}
+```
+
+#### Verify a Voter (Admin Only)
+
+```http
+POST /api/voters/verify
+```
+
+**Headers:**
+
+```
+x-admin-address: 0x6E5ceE75158A189939F6d945351dBD86370672AD
+```
+
+**Request Body:**
+
+```json
+{
+  "adminAddress": "0x6E5ceE75158A189939F6d945351dBD86370672AD",
+  "voterAddress": "0x851BdD62Fd471a652CCFb4a0aa65E41e33B0508C",
+  "verificationNotes": "Verified manually after document check"
+}
+```
+
+**Response (Success - 200):**
+
+```json
+{
+  "message": "Voter verified successfully",
+  "verificationDate": "2023-04-05T10:30:45.123Z"
+}
+```
+
+#### Check Voter Status
+
+```http
+GET /api/voters/status/:address
+```
+
+**Parameters:**
+
+- `:address` - Ethereum address of the voter
+
+**Response (Success - 200):**
+
+```json
+{
+  "isVerified": true,
+  "registrationDate": "2023-04-01T15:30:45.123Z",
+  "verificationDate": "2023-04-05T10:30:45.123Z"
+}
+```
+
+#### Get Voter Details
+
+```http
+GET /api/voters/:address
+```
+
+**Parameters:**
+
+- `:address` - Ethereum address of the voter
+
+**Response (Success - 200):**
+
+```json
+{
+  "voter": {
+    "blockchainAddress": "0x851BdD62Fd471a652CCFb4a0aa65E41e33B0508C",
+    "rawData": {
+      "name": "John Doe",
+      "aadharNumber": "123456789012"
+    },
+    "district": "Mumbai, Maharashtra",
+    "gender": "Male",
+    "dob": "1990-01-01T00:00:00.000Z",
+    "aadharImage": "/uploads/example.png",
+    "isVerified": true,
+    "verificationDate": "2023-04-05T10:30:45.123Z",
+    "createdAt": "2023-04-01T15:30:45.123Z",
+    "updatedAt": "2023-04-05T10:30:45.123Z"
+  }
+}
+```
+
+### Admin Endpoints
+
+#### List All Voters (Admin Only)
+
+```http
+GET /api/admin/voters
+```
+
+**Headers:**
+
+```
+x-admin-address: 0x6E5ceE75158A189939F6d945351dBD86370672AD
+```
+
+**Query Parameters:**
+
+- `verified` (optional): Filter by verification status (true/false)
+- `page` (optional): Page number for pagination (default: 1)
+- `limit` (optional): Number of records per page (default: 10)
+- `search` (optional): Search by name, address, or aadhar number
+- `state` (optional): Filter by state
+
+**Response (Success - 200):**
+
+```json
+{
+  "voters": [
+    {
+      "blockchainAddress": "0x851BdD62Fd471a652CCFb4a0aa65E41e33B0508C",
+      "rawData": {
+        "name": "John Doe",
+        "aadharNumber": "123456******"
+      },
+      "district": "Mumbai, Maharashtra",
+      "gender": "Male",
+      "isVerified": true
+    }
+  ],
+  "pagination": {
+    "total": 45,
+    "page": 1,
+    "pages": 5
+  }
+}
+```
+
+#### Admin Dashboard Stats (Admin Only)
+
+```http
+GET /api/admin/stats
+```
+
+**Headers:**
+
+```
+x-admin-address: 0x6E5ceE75158A189939F6d945351dBD86370672AD
+```
+
+**Response (Success - 200):**
+
+```json
+{
+  "totalVoters": 45,
+  "verifiedVoters": 32,
+  "pendingVerification": 13,
+  "verificationRate": "71.11",
+  "todayRegistrations": 3,
+  "todayVerifications": 2,
+  "genderDistribution": {
+    "male": 24,
+    "female": 20,
+    "other": 1
+  },
+  "registrationTrends": [
+    { "_id": "2023-04-01", "count": 5 },
+    { "_id": "2023-04-02", "count": 8 }
+  ],
+  "verificationTrends": [
+    { "_id": "2023-04-02", "count": 3 },
+    { "_id": "2023-04-03", "count": 6 }
+  ],
+  "stateDistribution": [
+    { "_id": "Maharashtra", "total": 15, "verified": 12, "unverified": 3 },
+    { "_id": "Delhi", "total": 10, "verified": 7, "unverified": 3 }
+  ],
+  "ageDistribution": {
+    "below18": 0,
+    "age18to25": 12,
+    "age26to35": 18,
+    "age36to45": 10,
+    "age46to60": 4,
+    "above60": 1
+  }
+}
+```
+
+#### Admin Activity Logs (Admin Only)
+
+```http
+GET /api/admin/logs
+```
+
+**Headers:**
+
+```
+x-admin-address: 0x6E5ceE75158A189939F6d945351dBD86370672AD
+```
+
+**Query Parameters:**
+
+- `page` (optional): Page number for pagination (default: 1)
+- `limit` (optional): Number of records per page (default: 20)
+- `adminAddress` (optional): Filter by admin address
+- `action` (optional): Filter by action type (e.g., VERIFY_VOTER)
+- `status` (optional): Filter by status (SUCCESS, FAILURE)
+- `fromDate` (optional): Filter from date (format: YYYY-MM-DD)
+- `toDate` (optional): Filter to date (format: YYYY-MM-DD)
+
+**Response (Success - 200):**
+
+```json
+{
+  "logs": [
+    {
+      "adminAddress": "0x6E5ceE75158A189939F6d945351dBD86370672AD",
+      "action": "VERIFY_VOTER",
+      "description": "Admin verified voter 0x851BdD62Fd471a652CCFb4a0aa65E41e33B0508C",
+      "targetAddress": "0x851BdD62Fd471a652CCFb4a0aa65E41e33B0508C",
+      "transactionHash": "0xa1b2c3...",
+      "status": "SUCCESS",
+      "timestamp": "2023-04-05T10:30:45.123Z",
+      "ipAddress": "192.168.1.1"
+    }
+  ],
+  "pagination": {
+    "total": 57,
+    "page": 1,
+    "pages": 3
+  }
+}
+```
+
+#### State-wise Voter Distribution (Admin Only)
+
+```http
+GET /api/admin/stats/states
+```
+
+**Headers:**
+
+```
+x-admin-address: 0x6E5ceE75158A189939F6d945351dBD86370672AD
+```
+
+**Response (Success - 200):**
+
+```json
+{
+  "stateDistribution": [
+    {
+      "_id": "Maharashtra",
+      "total": 15,
+      "verified": 12,
+      "unverified": 3
+    },
+    {
+      "_id": "Delhi",
+      "total": 10,
+      "verified": 7,
+      "unverified": 3
+    }
+  ]
+}
+```
+
+#### Historical Statistics (Admin Only)
+
+```http
+GET /api/admin/stats/historical
+```
+
+**Headers:**
+
+```
+x-admin-address: 0x6E5ceE75158A189939F6d945351dBD86370672AD
+```
+
+**Query Parameters:**
+
+- `days` (optional): Number of days of history (default: 30)
+
+**Response (Success - 200):**
+
+```json
+{
+  "stats": [
+    {
+      "date": "2023-04-01T00:00:00.000Z",
+      "totalRegisteredVoters": 30,
+      "totalVerifiedVoters": 20,
+      "dailyRegistrations": 5,
+      "dailyVerifications": 3
+    },
+    {
+      "date": "2023-04-02T00:00:00.000Z",
+      "totalRegisteredVoters": 38,
+      "totalVerifiedVoters": 26,
+      "dailyRegistrations": 8,
+      "dailyVerifications": 6
+    }
+  ]
+}
+```
+
+### Upload Endpoints
+
+#### Upload Aadhar Image
+
+```http
+POST /api/upload/aadhar
+```
+
+**Form Data:**
+
+- `file`: The image file
+- `address`: The blockchain address of the voter
+
+**Response (Success - 200):**
+
+```json
+{
+  "message": "File uploaded successfully",
+  "filePath": "/uploads/23ff9c56c6d9571d050d7d845b6218de.png"
+}
+```
+
+### Health Check
+
+```http
+GET /health
+```
+
+**Response (Success - 200):**
+
+```json
+{
+  "status": "ok",
+  "timestamp": "2023-04-05T10:30:45.123Z",
+  "services": {
+    "blockchain": true,
+    "database": true
+  }
+}
+```
+
 ## 🧪 Testing the API
 
 You can use Postman, curl, or any API testing tool to test the endpoints.

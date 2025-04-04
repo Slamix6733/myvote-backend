@@ -72,22 +72,167 @@ const getContractWithSigner = () => {
 };
 
 // Functions for interacting with the smart contract
-const registerVoter = async (address, name, dob, voterIdHash, aadharNumber, residentialAddress) => {
+const registerVoter = async (nameHash, aadharHash, voterAddress = null) => {
   try {
+    console.log("Input hashes raw:", { 
+      nameHash, 
+      aadharHash,
+      nameHashType: typeof nameHash,
+      aadharHashType: typeof aadharHash,
+      voterAddress
+    });
+    
+    // Ensure the hashes are strings with 0x prefix
+    if (!nameHash || typeof nameHash !== 'string') {
+      throw new Error(`Invalid nameHash: ${nameHash}`);
+    }
+    
+    if (!aadharHash || typeof aadharHash !== 'string') {
+      throw new Error(`Invalid aadharHash: ${aadharHash}`);
+    }
+    
+    // Ensure 0x prefix
+    if (!nameHash.startsWith('0x')) {
+      nameHash = '0x' + nameHash;
+    }
+    
+    if (!aadharHash.startsWith('0x')) {
+      aadharHash = '0x' + aadharHash;
+    }
+    
+    // Validate hash format - must be 0x-prefixed 32-byte hex strings (66 chars total)
+    if (nameHash.length !== 66 || !nameHash.startsWith('0x')) {
+      throw new Error(`Invalid nameHash format: ${nameHash}`);
+    }
+    
+    if (aadharHash.length !== 66 || !aadharHash.startsWith('0x')) {
+      throw new Error(`Invalid aadharHash format: ${aadharHash}`);
+    }
+    
     const contractWithSigner = getContractWithSigner();
-    const tx = await contractWithSigner.registerVoter(name, dob, voterIdHash, aadharNumber, residentialAddress);
-    return await tx.wait();
+    
+    console.log("Contract address being used:", process.env.CONTRACT_ADDRESS);
+    const sender = await getSigner().getAddress();
+    console.log("Sender address (admin):", sender);
+    
+    // Verify the contract code exists
+    const code = await provider.getCode(process.env.CONTRACT_ADDRESS);
+    if (code === '0x') {
+      throw new Error("No contract code at the specified address!");
+    }
+    
+    let tx;
+    
+    // If voter address is provided and different from sender, use registerVoterByAdmin
+    if (voterAddress && voterAddress.toLowerCase() !== sender.toLowerCase()) {
+      console.log("Registering voter by admin for address:", voterAddress);
+      
+      // Use the admin function that registers for a specific address
+      tx = await contractWithSigner.registerVoterByAdmin(
+        voterAddress,  // address _voterAddress
+        nameHash,      // bytes32 _nameHash
+        aadharHash,    // bytes32 _aadharHash
+        {
+          gasLimit: 500000
+        }
+      );
+    } else {
+      // Use the standard registration function (self-registration)
+      console.log("Using standard registration (self-registration)");
+      tx = await contractWithSigner.registerVoter(
+        nameHash,  // bytes32 _nameHash
+        aadharHash, // bytes32 _aadharHash
+        {
+          gasLimit: 500000
+        }
+      );
+    }
+    
+    console.log("Transaction sent:", tx.hash);
+    try {
+      const receipt = await tx.wait();
+      console.log("Transaction receipt:", {
+        hash: receipt.hash,
+        blockNumber: receipt.blockNumber,
+        status: receipt.status
+      });
+      return receipt;
+    } catch (waitError) {
+      console.error("Error waiting for transaction:", waitError);
+      
+      // If the receipt is available in the error, return that
+      if (waitError.receipt) {
+        console.log("Transaction receipt from error:", waitError.receipt);
+        return waitError.receipt;
+      }
+      
+      // Otherwise, return basic transaction info
+      return {
+        hash: tx.hash,
+        success: false,
+        error: waitError.message
+      };
+    }
   } catch (error) {
     console.error("Error registering voter:", error);
+    
+    // More detailed error handling
+    if (error.code === 'CALL_EXCEPTION') {
+      console.error("Contract call exception. Details:", error.transaction);
+      console.error("Receipt:", error.receipt);
+      
+      // The transaction was mined but reverted
+      if (error.receipt && error.receipt.status === 0) {
+        console.error("Transaction reverted by the contract. This might be because:");
+        console.error("1. You're already registered");
+        console.error("2. Registration is closed");
+        console.error("3. The Aadhar hash is already used");
+        console.error("4. One of the hashes is empty (all zeros)");
+      }
+    }
+    
     throw error;
   }
 };
 
 const verifyVoter = async (voterAddress) => {
   try {
+    console.log("Verifying voter on blockchain:", voterAddress);
+    
+    // Ensure address is valid
+    if (!voterAddress || typeof voterAddress !== 'string' || !voterAddress.startsWith('0x')) {
+      throw new Error(`Invalid voter address: ${voterAddress}`);
+    }
+    
     const contractWithSigner = getContractWithSigner();
-    const tx = await contractWithSigner.verifyVoter(voterAddress);
-    return await tx.wait();
+    const tx = await contractWithSigner.verifyVoter(voterAddress, {
+      gasLimit: 300000
+    });
+    
+    console.log("Verification transaction sent:", tx.hash);
+    try {
+      const receipt = await tx.wait();
+      console.log("Verification receipt:", {
+        hash: receipt.hash,
+        blockNumber: receipt.blockNumber,
+        status: receipt.status
+      });
+      return receipt;
+    } catch (waitError) {
+      console.error("Error waiting for verification:", waitError);
+      
+      // If the receipt is available in the error, return that
+      if (waitError.receipt) {
+        return waitError.receipt;
+      }
+      
+      // Otherwise, return basic transaction info
+      return {
+        hash: tx.hash,
+        success: false,
+        error: waitError.message
+      };
+    }
   } catch (error) {
     console.error("Error verifying voter:", error);
     throw error;
@@ -113,12 +258,11 @@ const getVoterDetails = async (voterAddress) => {
     }
     const details = await contract.getVoterDetails(voterAddress);
     return {
-      name: details[0],
-      dob: Number(details[1]),
+      nameHash: details[0],
+      aadharHash: details[1],
       isVerified: details[2],
-      residentialAddress: details[3],
-      registrationTimestamp: Number(details[4]),
-      lastVerifiedTimestamp: Number(details[5])
+      registrationTimestamp: Number(details[3]),
+      lastVerifiedTimestamp: Number(details[4])
     };
   } catch (error) {
     console.error("Error getting voter details:", error);
@@ -129,7 +273,9 @@ const getVoterDetails = async (voterAddress) => {
 const setRegistrationStatus = async (isOpen) => {
   try {
     const contractWithSigner = getContractWithSigner();
-    const tx = await contractWithSigner.setRegistrationStatus(isOpen);
+    const tx = await contractWithSigner.setRegistrationStatus(isOpen, {
+      gasLimit: 200000
+    });
     return await tx.wait();
   } catch (error) {
     console.error("Error setting registration status:", error);

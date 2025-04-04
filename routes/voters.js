@@ -5,8 +5,30 @@ const {
   verifyVoter, 
   checkVoterStatus, 
   getVoterDetails,
-  updateVoterProfile 
+  getVoterByAdmin
 } = require('../controllers/voterController');
+
+// Middleware to check if the request comes from an admin
+const isAdmin = async (req, res, next) => {
+  try {
+    const adminAddress = process.env.ADMIN_ADDRESS;
+    if (!adminAddress) {
+      return res.status(500).json({ error: "Admin address not configured" });
+    }
+    
+    const providedAdmin = req.headers['x-admin-address'] || req.query.adminAddress;
+    
+    // Check if the sender address matches the admin address
+    if (providedAdmin && providedAdmin.toLowerCase() === adminAddress.toLowerCase()) {
+      next();
+    } else {
+      return res.status(403).json({ error: "Unauthorized access" });
+    }
+  } catch (error) {
+    console.error("Admin check error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
 
 // Register a new voter
 router.post('/register', registerVoter);
@@ -17,10 +39,10 @@ router.post('/verify', verifyVoter);
 // Check voter status
 router.get('/status/:address', checkVoterStatus);
 
-// Get voter details
+// Get voter details (limited for regular users, full for admin or self)
 router.get('/details/:address', getVoterDetails);
 
-// Update voter profile (only extended fields)
-router.patch('/profile/:address', updateVoterProfile);
+// Admin access to voter details with decrypted data
+router.get('/admin/:address', isAdmin, getVoterByAdmin);
 
 module.exports = router; 
