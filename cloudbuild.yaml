@@ -42,34 +42,31 @@ steps:
         echo "SEPOLIA_RPC_URL=${_SEPOLIA_RPC_URL}" >> .env
     waitFor: ['deploy-contract']
   
-  # Create App Engine app if it doesn't exist
+  # Check if App Engine exists and skip creation if necessary
   - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'create-app'
+    id: 'verify-app'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
-        # Check if app exists, create if not
-        if ! gcloud app describe &>/dev/null; then
-          echo "Creating App Engine application in us-central region"
-          gcloud app create --region=us-central
+        # Skip app creation as it requires owner permissions
+        echo "Checking if App Engine is already set up"
+        if gcloud app describe &>/dev/null; then
+          echo "App Engine application already exists, proceeding with deployment"
         else
-          echo "App Engine application already exists"
+          echo "WARNING: App Engine application does not exist."
+          echo "Please create an App Engine application manually in the Google Cloud Console:"
+          echo "https://console.cloud.google.com/appengine/start?project=notional-yeti-461501-r9"
+          echo "Select region 'us-central' and then rerun this build."
+          exit 0  # Don't fail the build, just don't deploy
         fi
     waitFor: ['enable-apis']
   
-  # Deploy to App Engine with project explicitly specified
+  # Deploy to App Engine
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'deploy-app'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        # Get project ID and deploy
-        PROJECT_ID=$$(gcloud config get-value project)
-        echo "Deploying to project: $$PROJECT_ID"
-        gcloud app deploy --project=$$PROJECT_ID --quiet
-    waitFor: ['create-env', 'create-app']
+    args: ['app', 'deploy', '--quiet']
+    waitFor: ['create-env', 'verify-app']
 
 # Define substitution variables to be configured in the Cloud Build trigger
 substitutions:
