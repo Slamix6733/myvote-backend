@@ -16,14 +16,52 @@ steps:
     args: ['run', 'compile']
     waitFor: ['install']
   
-  # Deploy contract to Sepolia
+  # Check if contract already exists and only deploy if needed
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'check-contract'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        # Check if we have a stored contract address in Cloud Storage
+        CONTRACT_FILE="gs://notional-yeti-461501-r9-contracts/contract-address.txt"
+        if gsutil -q stat $CONTRACT_FILE; then
+          echo "Contract file exists - using existing contract"
+          gsutil cp $CONTRACT_FILE ./contract-address.txt
+          STORED_CONTRACT_ADDRESS=$$(cat contract-address.txt)
+          echo "Using existing contract at: $$STORED_CONTRACT_ADDRESS"
+          echo "$$STORED_CONTRACT_ADDRESS" > ./deployments/contract-address.txt
+          # Create deployment file structure for later usage
+          echo '{"contractAddress": "'$$STORED_CONTRACT_ADDRESS'"}' > ./deployments/sepolia.json
+        else
+          echo "No existing contract found - will deploy a new one"
+          echo "NEW_DEPLOYMENT=true" > ./deployment.env
+        fi
+    waitFor: ['compile']
+  
+  # Deploy contract to Sepolia ONLY if needed
   - name: 'gcr.io/cloud-builders/npm'
     id: 'deploy-contract'
-    args: ['run', 'deploy:sepolia']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        if [ -f "./deployment.env" ]; then
+          echo "Deploying new contract..."
+          npm run deploy:sepolia
+          
+          # Store the contract address for future deployments
+          CONTRACT_ADDRESS=$$(cat deployments/sepolia.json | grep -o '"contractAddress": "[^"]*' | grep -o '[^"]*$')
+          echo "$$CONTRACT_ADDRESS" > ./contract-address.txt
+          gsutil cp ./contract-address.txt gs://notional-yeti-461501-r9-contracts/contract-address.txt
+          echo "Saved contract address $$CONTRACT_ADDRESS to Cloud Storage"
+        else
+          echo "Using existing contract - skipping deployment"
+        fi
     env:
       - 'PRIVATE_KEY=${_PRIVATE_KEY}'
       - 'SEPOLIA_RPC_URL=${_SEPOLIA_RPC_URL}'
-    waitFor: ['compile']
+    waitFor: ['check-contract']
   
   # Read contract address and create .env file
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -59,18 +97,26 @@ steps:
         echo "# Keep the deployment info" >> .gcloudignore
         echo "!deployments/sepolia.json" >> .gcloudignore
         
-        # Update app.yaml to use nodejs20 runtime
+        # Update app.yaml to use nodejs20 runtime with contract address included
         echo "runtime: nodejs20" > app.yaml
         echo "env: standard" >> app.yaml
         echo "" >> app.yaml
         echo "# Environment variables" >> app.yaml
         echo "env_variables:" >> app.yaml
         echo "  NODE_ENV: 'production'" >> app.yaml
+        echo "  CONTRACT_ADDRESS: \"$$CONTRACT_ADDRESS\"" >> app.yaml
+        echo "  SEPOLIA_RPC_URL: \"${_SEPOLIA_RPC_URL}\"" >> app.yaml
         echo "" >> app.yaml
         echo "# Use basic scaling" >> app.yaml
         echo "basic_scaling:" >> app.yaml
         echo "  max_instances: 2" >> app.yaml
         echo "  idle_timeout: 10m" >> app.yaml
+        echo "" >> app.yaml
+        echo "# Add entrypoint for reliable startup" >> app.yaml
+        echo "entrypoint: npm start" >> app.yaml
+        echo "" >> app.yaml
+        echo "# Increase instance class for better performance" >> app.yaml
+        echo "instance_class: F2" >> app.yaml
     waitFor: ['deploy-contract']
   
   # Check if App Engine exists and create deployment script that handles both cases
