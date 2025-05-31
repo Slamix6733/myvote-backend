@@ -40,6 +40,24 @@ steps:
         echo "PRIVATE_KEY=${_PRIVATE_KEY}" >> .env
         echo "ADMIN_ADDRESS=${_ADMIN_ADDRESS}" >> .env
         echo "SEPOLIA_RPC_URL=${_SEPOLIA_RPC_URL}" >> .env
+
+        # Create .gcloudignore file
+        echo "# This file specifies files that are *not* uploaded to Google Cloud" > .gcloudignore
+        echo "# using gcloud. It follows the same syntax as .gitignore." >> .gcloudignore
+        echo ".git" >> .gcloudignore
+        echo ".github" >> .gcloudignore
+        echo ".gitignore" >> .gcloudignore
+        echo "node_modules/" >> .gcloudignore
+        echo ".env" >> .gcloudignore
+        echo ".env.*" >> .gcloudignore
+        echo ".vscode/" >> .gcloudignore
+        echo "test/" >> .gcloudignore
+        echo "contracts/" >> .gcloudignore
+        echo "hardhat.config.js" >> .gcloudignore
+        echo "artifacts/" >> .gcloudignore
+        echo "cache/" >> .gcloudignore
+        echo "# Keep the deployment info" >> .gcloudignore
+        echo "!deployments/sepolia.json" >> .gcloudignore
     waitFor: ['deploy-contract']
   
   # Check if App Engine exists and create deployment script that handles both cases

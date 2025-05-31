@@ -9,10 +9,3 @@ env_variables:
 basic_scaling:
   max_instances: 2
   idle_timeout: 10m
-
-# Files to skip
-skip_files:
-- ^node_modules$
-- ^.git$
-- ^.env$
-- ^test$
