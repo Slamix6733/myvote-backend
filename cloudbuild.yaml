@@ -130,7 +130,7 @@ steps:
         echo "  max_concurrent_requests: 50" >> app.yaml
         echo "" >> app.yaml
         echo "# Use the main server" >> app.yaml
-        echo "entrypoint: npm start" >> app.yaml
+        echo "entrypoint: npm run dev" >> app.yaml
         echo "" >> app.yaml
         echo "# Use default instance class for now" >> app.yaml
         echo "instance_class: F1" >> app.yaml
