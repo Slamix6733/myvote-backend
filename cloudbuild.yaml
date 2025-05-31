@@ -29,13 +29,14 @@ steps:
         echo "Reading contract address from sepolia.json"
         CONTRACT_ADDRESS=$(cat deployments/sepolia.json | grep -o '"contractAddress": "[^"]*' | grep -o '[^"]*$')
         echo "Using contract address: $CONTRACT_ADDRESS"
-        cat > .env << EOF
+        cat > .env << 'EOF'
         PORT=8080
-        CONTRACT_ADDRESS=$CONTRACT_ADDRESS
-        PRIVATE_KEY=${_PRIVATE_KEY}
-        ADMIN_ADDRESS=${_ADMIN_ADDRESS}
-        SEPOLIA_RPC_URL=${_SEPOLIA_RPC_URL}
+        CONTRACT_ADDRESS='$CONTRACT_ADDRESS'
+        PRIVATE_KEY='${_PRIVATE_KEY}'
+        ADMIN_ADDRESS='${_ADMIN_ADDRESS}'
+        SEPOLIA_RPC_URL='${_SEPOLIA_RPC_URL}'
         EOF
+        sed -i "s/'\\\$CONTRACT_ADDRESS'/$CONTRACT_ADDRESS/g" .env
     waitFor: ['deploy-contract']
   
   # Deploy to App Engine
