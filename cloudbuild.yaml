@@ -148,12 +148,51 @@ steps:
         echo "Dockerfile" >> .gcloudignore
         echo ".dockerignore" >> .gcloudignore
         
+        # DON'T exclude node_modules - App Engine needs dependencies
+        # echo "node_modules/" >> .gcloudignore  # REMOVED THIS LINE
+        
         # Verify server.js exists - don't modify it, just check
         if [ -f "server.js" ]; then
           echo "server.js exists - using existing file"
+          echo "Listing files to verify structure:"
+          ls -la
         else
           echo "ERROR: server.js not found in project root!"
+          echo "Available files:"
+          ls -la
           exit 1
+        fi
+
+        # Verify package.json has correct start script
+        if [ -f "package.json" ]; then
+          echo "package.json exists"
+          echo "Checking start script:"
+          grep -A 5 '"scripts"' package.json || echo "No scripts section found"
+        else
+          echo "Creating minimal package.json..."
+          cat > package.json << 'EOF'
+{
+  "name": "myvote-backend",
+  "version": "1.0.0",
+  "description": "MyVote Backend API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "mongoose": "^7.0.3",
+    "multer": "^1.4.5-lts.1",
+    "ethers": "^6.0.0"
+  },
+  "engines": {
+    "node": "20.x"
+  }
+}
+EOF
         fi
 
         # Ensure uploads directory exists
