@@ -27,13 +27,13 @@ steps:
       - '-c'
       - |
         echo "Reading contract address from sepolia.json"
-        CONTRACT_ADDRESS=$(cat deployments/sepolia.json | grep -o '"contractAddress": "[^"]*' | grep -o '[^"]*$')
-        echo "Using contract address: $CONTRACT_ADDRESS"
+        CONTRACT_ADDRESS=$$(cat deployments/sepolia.json | grep -o '"contractAddress": "[^"]*' | grep -o '[^"]*$')
+        echo "Using contract address: $$CONTRACT_ADDRESS"
         echo "PORT=8080" > .env
-        echo "CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> .env
-        echo "PRIVATE_KEY=$_PRIVATE_KEY" >> .env
-        echo "ADMIN_ADDRESS=$_ADMIN_ADDRESS" >> .env
-        echo "SEPOLIA_RPC_URL=$_SEPOLIA_RPC_URL" >> .env
+        echo "CONTRACT_ADDRESS=$$CONTRACT_ADDRESS" >> .env
+        echo "PRIVATE_KEY=${_PRIVATE_KEY}" >> .env
+        echo "ADMIN_ADDRESS=${_ADMIN_ADDRESS}" >> .env
+        echo "SEPOLIA_RPC_URL=${_SEPOLIA_RPC_URL}" >> .env
     waitFor: ['deploy-contract']
   
   # Deploy to App Engine
