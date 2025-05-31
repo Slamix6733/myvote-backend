@@ -42,11 +42,34 @@ steps:
         echo "SEPOLIA_RPC_URL=${_SEPOLIA_RPC_URL}" >> .env
     waitFor: ['deploy-contract']
   
-  # Deploy to App Engine
+  # Create App Engine app if it doesn't exist
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'create-app'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        # Check if app exists, create if not
+        if ! gcloud app describe &>/dev/null; then
+          echo "Creating App Engine application in us-central region"
+          gcloud app create --region=us-central
+        else
+          echo "App Engine application already exists"
+        fi
+    waitFor: ['enable-apis']
+  
+  # Deploy to App Engine with project explicitly specified
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'deploy-app'
-    args: ['app', 'deploy', '--quiet']
-    waitFor: ['create-env', 'enable-apis']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        # Get project ID and deploy
+        PROJECT_ID=$$(gcloud config get-value project)
+        echo "Deploying to project: $$PROJECT_ID"
+        gcloud app deploy --project=$$PROJECT_ID --quiet
+    waitFor: ['create-env', 'create-app']
 
 # Define substitution variables to be configured in the Cloud Build trigger
 substitutions:
