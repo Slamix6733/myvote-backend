@@ -25,14 +25,14 @@ steps:
       - |
         echo "Creating deployment files..."
         
-        # Check if server.js exists and show its content
+        # Check if server.js exists
         if [ -f "server.js" ]; then
           echo "✓ Found existing server.js file"
           echo "First few lines of existing server.js:"
           head -10 server.js
         else
           echo "Creating server.js..."
-          cat << 'SERVERJS' > server.js
+          cat > server.js << 'EOF'
         const express = require('express');
         const cors = require('cors');
         const dotenv = require('dotenv');
@@ -63,28 +63,22 @@ steps:
         app.listen(PORT, () => {
           console.log('Server running on port ' + PORT);
         });
-        SERVERJS
+        EOF
         fi
         
-        # Only update package.json if it doesn't have the correct start script
+        # Handle package.json
         if [ -f "package.json" ]; then
           echo "Found existing package.json - checking start script"
           if ! grep -q '"start".*"node server.js"' package.json; then
             echo "Updating start script in existing package.json"
-            # Create a backup
             cp package.json package.json.backup
-            # Update just the start script using jq if available, otherwise use sed
-            if command -v jq &> /dev/null; then
-              jq '.scripts.start = "node server.js"' package.json > package.json.tmp && mv package.json.tmp package.json
-            else
-              sed -i 's/"start": "[^"]*"/"start": "node server.js"/g' package.json
-            fi
+            sed -i 's/"start": "[^"]*"/"start": "node server.js"/g' package.json
           else
             echo "✓ Package.json already has correct start script"
           fi
         else
-          echo "Creating new package.json with essential dependencies..."
-          cat << 'PACKAGEJSON' > package.json
+          echo "Creating new package.json..."
+          cat > package.json << 'EOF'
         {
           "name": "myvote-backend",
           "version": "1.0.0",
@@ -106,11 +100,12 @@ steps:
             "npm": "10.x"
           }
         }
-        PACKAGEJSON
+        EOF
+        fi
         
-        # Update existing app.yaml to ensure it has proper environment variables
-        echo "Updating app.yaml with environment variables..."
-        cat << 'APPYAML' > app.yaml
+        # Create app.yaml
+        echo "Creating app.yaml..."
+        cat > app.yaml << 'EOF'
         runtime: nodejs20
         env: standard
         
@@ -147,10 +142,10 @@ steps:
         
         network:
           session_affinity: false
-        APPYAML
+        EOF
         
-        # Update .gcloudignore to exclude unnecessary files
-        cat << 'GCLOUDIGNORE' > .gcloudignore
+        # Create .gcloudignore
+        cat > .gcloudignore << 'EOF'
         .git
         .github
         .gitignore
@@ -170,27 +165,17 @@ steps:
         npm-debug.log*
         yarn-debug.log*
         yarn-error.log*
-        GCLOUDIGNORE
+        EOF
         
         # Ensure required directories exist
         mkdir -p uploads
         mkdir -p public
         
-        # Show all files in current directory
-        echo "All files in project directory:"
-        ls -la
-        
-        # Verify server.js content
-        echo ""
-        echo "Final server.js verification:"
-        echo "File exists: $([ -f server.js ] && echo 'YES' || echo 'NO')"
-        echo "File size: $([ -f server.js ] && stat -c%s server.js || echo 'N/A')"
-        echo "File permissions: $([ -f server.js ] && stat -c%a server.js || echo 'N/A')"
-        
         echo "Files prepared successfully"
+        ls -la
     waitFor: ['install-deps']
 
-  # Deploy to App Engine
+  # Deploy to App Engine  
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'deploy'
     entrypoint: 'bash'
@@ -199,73 +184,37 @@ steps:
       - |
         echo "Starting deployment..."
         
-        # Verify all required files exist
-        echo "Checking required files for deployment..."
-        
-        REQUIRED_FILES=("server.js" "package.json" "app.yaml")
-        MISSING_FILES=()
-        
-        for file in "${REQUIRED_FILES[@]}"; do
+        # Verify required files
+        for file in server.js package.json app.yaml; do
           if [ ! -f "$file" ]; then
-            MISSING_FILES+=("$file")
-            echo "ERROR: Missing required file: $file"
+            echo "ERROR: Missing $file"
+            exit 1
           else
             echo "✓ Found: $file"
           fi
         done
         
-        if [ ${#MISSING_FILES[@]} -ne 0 ]; then
-          echo "ERROR: Missing required files for deployment!"
-          exit 1
-        fi
-        
-        # Check if node_modules exists (dependencies installed)
+        # Check dependencies
         if [ ! -d "node_modules" ]; then
-          echo "WARNING: node_modules directory not found"
-          echo "Installing dependencies again..."
+          echo "Installing dependencies..."
           npm install --production
-        else
-          echo "✓ Dependencies are installed"
         fi
         
-        # Verify essential directories exist
-        mkdir -p uploads
-        mkdir -p public
-        
-        # Show current deployment structure
-        echo "Current deployment structure:"
-        ls -la
-        echo ""
-        echo "Package.json content:"
-        cat package.json
-        echo ""
-        echo "App.yaml content:"
-        cat app.yaml
-        echo ""
-        echo "Server.js exists: $([ -f server.js ] && echo 'YES' || echo 'NO')"
-        
-        # Check App Engine application
+        # Deploy
         if gcloud app describe &>/dev/null; then
-          echo "App Engine application exists, deploying..."
-          
-          # Deploy with more verbose output for debugging
+          echo "Deploying to App Engine..."
           gcloud app deploy --quiet --verbosity=info
           
           if [ $? -eq 0 ]; then
             echo "Deployment completed successfully!"
             gcloud app browse --no-launch-browser
           else
-            echo "Deployment failed with exit code: $?"
-            echo "Check the logs above for more details"
+            echo "Deployment failed!"
             exit 1
           fi
         else
           echo "App Engine application does not exist."
-          echo "Create it at: https://console.cloud.google.com/appengine/start?project=notional-yeti-461501-r9"
-          echo "Select region: us-central"
-          echo "Then rerun this build."
-          echo ""
-          echo "All files are prepared and ready for deployment once App Engine app is created."
+          echo "Create it at: https://console.cloud.google.com/appengine"
         fi
     waitFor: ['create-files', 'enable-apis']
 
