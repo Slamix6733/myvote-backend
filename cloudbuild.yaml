@@ -25,8 +25,12 @@ steps:
       - |
         echo "Creating deployment files..."
         
-        # Create server.js if it doesn't exist
-        if [ ! -f "server.js" ]; then
+        # Check if server.js exists and show its content
+        if [ -f "server.js" ]; then
+          echo "✓ Found existing server.js file"
+          echo "First few lines of existing server.js:"
+          head -10 server.js
+        else
           echo "Creating server.js..."
           cat << 'SERVERJS' > server.js
         const express = require('express');
@@ -62,8 +66,25 @@ steps:
         SERVERJS
         fi
         
-        # Create package.json
-        cat << 'PACKAGEJSON' > package.json
+        # Only update package.json if it doesn't have the correct start script
+        if [ -f "package.json" ]; then
+          echo "Found existing package.json - checking start script"
+          if ! grep -q '"start".*"node server.js"' package.json; then
+            echo "Updating start script in existing package.json"
+            # Create a backup
+            cp package.json package.json.backup
+            # Update just the start script using jq if available, otherwise use sed
+            if command -v jq &> /dev/null; then
+              jq '.scripts.start = "node server.js"' package.json > package.json.tmp && mv package.json.tmp package.json
+            else
+              sed -i 's/"start": "[^"]*"/"start": "node server.js"/g' package.json
+            fi
+          else
+            echo "✓ Package.json already has correct start script"
+          fi
+        else
+          echo "Creating new package.json with essential dependencies..."
+          cat << 'PACKAGEJSON' > package.json
         {
           "name": "myvote-backend",
           "version": "1.0.0",
@@ -87,10 +108,9 @@ steps:
         }
         PACKAGEJSON
         
-        # Use existing app.yaml or create a simple one
-        if [ ! -f "app.yaml" ]; then
-          echo "Creating app.yaml..."
-          cat << 'APPYAML' > app.yaml
+        # Update existing app.yaml to ensure it has proper environment variables
+        echo "Updating app.yaml with environment variables..."
+        cat << 'APPYAML' > app.yaml
         runtime: nodejs20
         env: standard
         
@@ -128,11 +148,8 @@ steps:
         network:
           session_affinity: false
         APPYAML
-        else
-          echo "Using existing app.yaml file"
-        fi
         
-        # Create .gcloudignore
+        # Update .gcloudignore to exclude unnecessary files
         cat << 'GCLOUDIGNORE' > .gcloudignore
         .git
         .github
@@ -149,12 +166,28 @@ steps:
         .env.*
         Dockerfile
         .dockerignore
+        node_modules/.cache/
+        npm-debug.log*
+        yarn-debug.log*
+        yarn-error.log*
         GCLOUDIGNORE
         
+        # Ensure required directories exist
         mkdir -p uploads
+        mkdir -p public
         
-        echo "Files created successfully"
+        # Show all files in current directory
+        echo "All files in project directory:"
         ls -la
+        
+        # Verify server.js content
+        echo ""
+        echo "Final server.js verification:"
+        echo "File exists: $([ -f server.js ] && echo 'YES' || echo 'NO')"
+        echo "File size: $([ -f server.js ] && stat -c%s server.js || echo 'N/A')"
+        echo "File permissions: $([ -f server.js ] && stat -c%a server.js || echo 'N/A')"
+        
+        echo "Files prepared successfully"
     waitFor: ['install-deps']
 
   # Deploy to App Engine
