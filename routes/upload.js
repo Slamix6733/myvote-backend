@@ -35,7 +35,7 @@ const fileFilter = (req, file, cb) => {
 };
 
 // Create the Multer instance
-const upload = multer({ 
+const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
@@ -43,19 +43,31 @@ const upload = multer({
   }
 });
 
+// Middleware to verify admin role
+const verifyAdmin = (req, res, next) => {
+  // For demonstration, let's assume admin status is sent in the headers
+  const isAdmin = req.headers['x-admin'] === 'true';
+
+  if (!isAdmin) {
+    return res.status(403).json({ error: 'Forbidden: Admins only' });
+  }
+
+  next();
+};
+
 // Route for uploading Aadhar image
-router.post('/aadhar', upload.single('aadharImage'), (req, res) => {
+router.post('/aadhar', verifyAdmin, upload.single('aadharImage'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
-    
+
     // Get the path of the uploaded file
     const filePath = req.file.path;
-    
+
     // Create a URL that can be used to access the file
     const fileUrl = `/uploads/${path.basename(filePath)}`;
-    
+
     res.status(200).json({
       message: 'File uploaded successfully',
       fileUrl: fileUrl,
@@ -65,6 +77,11 @@ router.post('/aadhar', upload.single('aadharImage'), (req, res) => {
     console.error('File upload error:', error);
     res.status(500).json({ error: 'File upload failed', details: error.message });
   }
+});
+
+// Add health check endpoint
+router.get('/health', (req, res) => {
+  res.status(200).json({ status: 'OK', service: 'upload' });
 });
 
 // Serve static files from the uploads directory
@@ -81,4 +98,4 @@ router.use((err, req, res, next) => {
   next(err);
 });
 
-module.exports = router; 
+module.exports = router;

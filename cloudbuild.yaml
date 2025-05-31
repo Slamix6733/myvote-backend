@@ -122,18 +122,20 @@ steps:
         echo "  CONTRACT_ADDRESS: \"$$CONTRACT_ADDRESS\"" >> app.yaml
         echo "  SEPOLIA_RPC_URL: \"${_SEPOLIA_RPC_URL}\"" >> app.yaml
         echo "  ADMIN_ADDRESS: \"${_ADMIN_ADDRESS}\"" >> app.yaml
+        echo "  MONGODB_URI: \"${_MONGODB_URI}\"" >> app.yaml
+        echo "  ENCRYPTION_KEY: \"${_ENCRYPTION_KEY}\"" >> app.yaml
         echo "" >> app.yaml
         echo "# Use automatic scaling" >> app.yaml
         echo "automatic_scaling:" >> app.yaml
         echo "  min_instances: 1" >> app.yaml
-        echo "  max_instances: 2" >> app.yaml
-        echo "  max_concurrent_requests: 50" >> app.yaml
+        echo "  max_instances: 5" >> app.yaml
+        echo "  max_concurrent_requests: 80" >> app.yaml
         echo "" >> app.yaml
-        echo "# Use the main server" >> app.yaml
-        echo "entrypoint: npm run dev" >> app.yaml
+        echo "# Use the correct start command" >> app.yaml
+        echo "entrypoint: npm start" >> app.yaml
         echo "" >> app.yaml
-        echo "# Use default instance class for now" >> app.yaml
-        echo "instance_class: F1" >> app.yaml
+        echo "# Use more appropriate instance class" >> app.yaml
+        echo "instance_class: F2" >> app.yaml
     waitFor: ['save-contract']
   
   # Check if App Engine exists and create deployment script that handles both cases
@@ -165,6 +167,8 @@ substitutions:
   _PRIVATE_KEY: '' # Set this in your Cloud Build trigger
   _ADMIN_ADDRESS: '' # Set this in your Cloud Build trigger
   _SEPOLIA_RPC_URL: '' # Set this in your Cloud Build trigger
+  _MONGODB_URI: '' # Set this in your Cloud Build trigger
+  _ENCRYPTION_KEY: '' # Set this in your Cloud Build trigger
 
 # Set timeout for the entire build
 timeout: '1800s' # 30 minutes
