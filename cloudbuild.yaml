@@ -163,19 +163,98 @@ steps:
         # Verify package.json has correct start script
         if [ -f "package.json" ]; then
           echo "package.json exists"
-          echo "Checking start script:"
-          grep -A 5 '"scripts"' package.json || echo "No scripts section found"
+          echo "Current package.json content:"
+          cat package.json
+          
+          # Check if package.json has the right start script
+          if grep -q '"start".*"node server.js"' package.json; then
+            echo "Start script is correctly set to 'node server.js'"
+          else
+            echo "Start script needs updating - current scripts:"
+            grep -A 5 '"scripts"' package.json || echo "No scripts section found"
+            
+            # Create a clean package.json for production deployment
+            echo "Creating production-ready package.json..."
+            cat > package.json << 'PACKAGE_EOF'
+{
+  "name": "myvote-backend",
+  "version": "1.0.0",
+  "description": "MyVote Backend API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "mongoose": "^7.0.3",
+    "multer": "^1.4.5-lts.1",
+    "ethers": "^6.0.0"
+  },
+  "engines": {
+    "node": "20.x",
+    "npm": "10.x"
+  }
+}
+PACKAGE_EOF
+          fi
         else
           echo "Creating minimal package.json..."
-          echo '{"name":"myvote-backend","version":"1.0.0","main":"server.js","scripts":{"start":"node server.js"},"dependencies":{"express":"^4.18.2","cors":"^2.8.5","dotenv":"^16.0.3","mongoose":"^7.0.3","multer":"^1.4.5-lts.1","ethers":"^6.0.0"},"engines":{"node":"20.x"}}' > package.json
+          cat > package.json << 'PACKAGE_EOF'
+{
+  "name": "myvote-backend",
+  "version": "1.0.0",
+  "description": "MyVote Backend API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "mongoose": "^7.0.3",
+    "multer": "^1.4.5-lts.1",
+    "ethers": "^6.0.0"
+  },
+  "engines": {
+    "node": "20.x",
+    "npm": "10.x"
+  }
+}
+PACKAGE_EOF
         fi
+
+        # Verify node_modules exists and has required packages
+        echo "Checking installed dependencies:"
+        ls -la node_modules/ | head -10 || echo "node_modules not found or empty"
+        
+        # Check if essential packages are installed
+        for pkg in express cors dotenv mongoose multer ethers; do
+          if [ -d "node_modules/$pkg" ]; then
+            echo "✓ $pkg is installed"
+          else
+            echo "✗ $pkg is missing - this may cause deployment issues"
+          fi
+        done
 
         # Ensure uploads directory exists
         mkdir -p uploads
         
-        # Create app.yaml for App Engine
+        # Create app.yaml for App Engine with better configuration
         echo "runtime: nodejs20" > app.yaml
-        echo "env: standard" >> app.yaml
+        echo "env: standard" > app.yaml
+        echo "" >> app.yaml
+        echo "# Skip package.json gcloud build - use pre-installed dependencies" >> app.yaml
+        echo "skip_files:" >> app.yaml
+        echo "  - ^(.*/)?#.*#$" >> app.yaml
+        echo "  - ^(.*/)?.*~$" >> app.yaml
+        echo "  - ^(.*/)?.*\.py[co]$" >> app.yaml
+        echo "  - ^(.*/)?.*/RCS/.*$" >> app.yaml
+        echo "  - ^(.*/)?\..*$" >> app.yaml
         echo "" >> app.yaml
         echo "# Environment variables" >> app.yaml
         echo "env_variables:" >> app.yaml
@@ -190,8 +269,8 @@ steps:
         echo "# Use automatic scaling" >> app.yaml
         echo "automatic_scaling:" >> app.yaml
         echo "  min_instances: 1" >> app.yaml
-        echo "  max_instances: 3" >> app.yaml
-        echo "  max_concurrent_requests: 50" >> app.yaml
+        echo "  max_instances: 5" >> app.yaml
+        echo "  max_concurrent_requests: 80" >> app.yaml
         echo "" >> app.yaml
         echo "# Health checks" >> app.yaml
         echo "readiness_check:" >> app.yaml
@@ -206,14 +285,14 @@ steps:
         echo "  path: \"/health\"" >> app.yaml
         echo "  check_interval_sec: 30" >> app.yaml
         echo "  timeout_sec: 4" >> app.yaml
-        echo "  failure_threshold: 2" >> app.yaml
+        echo "  failure_threshold: 4" >> app.yaml
         echo "  success_threshold: 2" >> app.yaml
         echo "" >> app.yaml
-        echo "# Use the correct start command" >> app.yaml
-        echo "entrypoint: npm start" >> app.yaml
+        echo "# Direct entrypoint to avoid npm issues" >> app.yaml
+        echo "entrypoint: node server.js" >> app.yaml
         echo "" >> app.yaml
-        echo "# Use basic instance class" >> app.yaml
-        echo "instance_class: F1" >> app.yaml
+        echo "# Use F2 for better performance" >> app.yaml
+        echo "instance_class: F2" >> app.yaml
         
         echo "Created app.yaml with contract address: $$CONTRACT_ADDRESS"
         echo "Project structure verified and configured for deployment"
