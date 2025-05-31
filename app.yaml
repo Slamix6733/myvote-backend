@@ -1,0 +1,14 @@
+runtime: nodejs16
+env: standard
+
+
+# Ensure these directories are included
+includes:
+- .env
+  - deployments/
+  - artifacts/
+
+# Basic scaling for your application
+basic_scaling:
+  max_instances: 2
+  idle_timeout: 10m

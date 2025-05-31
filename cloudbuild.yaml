@@ -1,0 +1,54 @@
+steps:
+  # Install dependencies
+  - name: 'gcr.io/cloud-builders/npm'
+    id: 'install'
+    args: ['install']
+  
+  # Compile contracts
+  - name: 'gcr.io/cloud-builders/npm'
+    id: 'compile'
+    args: ['run', 'compile']
+    waitFor: ['install']
+  
+  # Deploy contract to Sepolia
+  - name: 'gcr.io/cloud-builders/npm'
+    id: 'deploy-contract'
+    args: ['run', 'deploy:sepolia']
+    env:
+      - 'PRIVATE_KEY=${_PRIVATE_KEY}'
+      - 'SEPOLIA_RPC_URL=${_SEPOLIA_RPC_URL}'
+    waitFor: ['compile']
+  
+  # Read contract address and create .env file
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'create-env'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Reading contract address from sepolia.json"
+        CONTRACT_ADDRESS=$(cat deployments/sepolia.json | grep -o '"contractAddress": "[^"]*' | grep -o '[^"]*$')
+        echo "Using contract address: $CONTRACT_ADDRESS"
+        cat > .env << EOF
+        PORT=8080
+        CONTRACT_ADDRESS=$CONTRACT_ADDRESS
+        PRIVATE_KEY=${_PRIVATE_KEY}
+        ADMIN_ADDRESS=${_ADMIN_ADDRESS}
+        SEPOLIA_RPC_URL=${_SEPOLIA_RPC_URL}
+        EOF
+    waitFor: ['deploy-contract']
+  
+  # Deploy to App Engine
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-app'
+    args: ['app', 'deploy', '--quiet']
+    waitFor: ['create-env']
+
+# Define substitution variables to be configured in the Cloud Build trigger
+substitutions:
+  _PRIVATE_KEY: '' # Set this in your Cloud Build trigger
+  _ADMIN_ADDRESS: '' # Set this in your Cloud Build trigger
+  _SEPOLIA_RPC_URL: '' # Set this in your Cloud Build trigger
+
+# Set timeout for the entire build
+timeout: '1800s' # 30 minutes
