@@ -36,11 +36,24 @@ steps:
         echo "SEPOLIA_RPC_URL=${_SEPOLIA_RPC_URL}" >> .env
     waitFor: ['deploy-contract']
   
-  # Deploy to App Engine
+  # List files before deployment (to debug)
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'list-files'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Listing deployment files:"
+        ls -la
+        echo "Content of deployments directory:"
+        ls -la deployments/ || echo "Deployments directory not found"
+    waitFor: ['create-env']
+  
+  # Deploy to App Engine with verbose logging
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'deploy-app'
-    args: ['app', 'deploy', '--quiet']
-    waitFor: ['create-env']
+    args: ['app', 'deploy', '--verbosity=debug']
+    waitFor: ['list-files']
 
 # Define substitution variables to be configured in the Cloud Build trigger
 substitutions:
@@ -51,6 +64,6 @@ substitutions:
 # Set timeout for the entire build
 timeout: '1800s' # 30 minutes
 
-# Disable logging
+# Enable cloud logging for better debugging
 options:
-  logging: NONE
+  logging: CLOUD_LOGGING_ONLY
