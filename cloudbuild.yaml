@@ -160,17 +160,14 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 
-// Load environment variables
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'healthy', 
@@ -179,7 +176,6 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Basic API endpoint
 app.get('/api/status', (req, res) => {
   res.json({ 
     message: 'MyVote Backend API is running',
@@ -187,9 +183,8 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-// Start server
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log('Server running on port ' + PORT);
 });
 EOF
           echo "Created minimal server.js file"
