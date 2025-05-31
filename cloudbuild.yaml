@@ -52,3 +52,7 @@ substitutions:
 
 # Set timeout for the entire build
 timeout: '1800s' # 30 minutes
+
+# Disable logging
+options:
+  logging: NONE
