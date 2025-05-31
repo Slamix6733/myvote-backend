@@ -175,57 +175,53 @@ steps:
             
             # Create a clean package.json for production deployment
             echo "Creating production-ready package.json..."
-            cat > package.json << 'PACKAGE_EOF'
-{
-  "name": "myvote-backend",
-  "version": "1.0.0",
-  "description": "MyVote Backend API",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
-  },
-  "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "dotenv": "^16.0.3",
-    "mongoose": "^7.0.3",
-    "multer": "^1.4.5-lts.1",
-    "ethers": "^6.0.0"
-  },
-  "engines": {
-    "node": "20.x",
-    "npm": "10.x"
-  }
-}
-PACKAGE_EOF
+            echo '{' > package.json
+            echo '  "name": "myvote-backend",' >> package.json
+            echo '  "version": "1.0.0",' >> package.json
+            echo '  "description": "MyVote Backend API",' >> package.json
+            echo '  "main": "server.js",' >> package.json
+            echo '  "scripts": {' >> package.json
+            echo '    "start": "node server.js",' >> package.json
+            echo '    "dev": "nodemon server.js"' >> package.json
+            echo '  },' >> package.json
+            echo '  "dependencies": {' >> package.json
+            echo '    "express": "^4.18.2",' >> package.json
+            echo '    "cors": "^2.8.5",' >> package.json
+            echo '    "dotenv": "^16.0.3",' >> package.json
+            echo '    "mongoose": "^7.0.3",' >> package.json
+            echo '    "multer": "^1.4.5-lts.1",' >> package.json
+            echo '    "ethers": "^6.0.0"' >> package.json
+            echo '  },' >> package.json
+            echo '  "engines": {' >> package.json
+            echo '    "node": "20.x",' >> package.json
+            echo '    "npm": "10.x"' >> package.json
+            echo '  }' >> package.json
+            echo '}' >> package.json
           fi
         else
           echo "Creating minimal package.json..."
-          cat > package.json << 'PACKAGE_EOF'
-{
-  "name": "myvote-backend",
-  "version": "1.0.0",
-  "description": "MyVote Backend API",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
-  },
-  "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "dotenv": "^16.0.3",
-    "mongoose": "^7.0.3",
-    "multer": "^1.4.5-lts.1",
-    "ethers": "^6.0.0"
-  },
-  "engines": {
-    "node": "20.x",
-    "npm": "10.x"
-  }
-}
-PACKAGE_EOF
+          echo '{' > package.json
+          echo '  "name": "myvote-backend",' >> package.json
+          echo '  "version": "1.0.0",' >> package.json
+          echo '  "description": "MyVote Backend API",' >> package.json
+          echo '  "main": "server.js",' >> package.json
+          echo '  "scripts": {' >> package.json
+          echo '    "start": "node server.js",' >> package.json
+          echo '    "dev": "nodemon server.js"' >> package.json
+          echo '  },' >> package.json
+          echo '  "dependencies": {' >> package.json
+          echo '    "express": "^4.18.2",' >> package.json
+          echo '    "cors": "^2.8.5",' >> package.json
+          echo '    "dotenv": "^16.0.3",' >> package.json
+          echo '    "mongoose": "^7.0.3",' >> package.json
+          echo '    "multer": "^1.4.5-lts.1",' >> package.json
+          echo '    "ethers": "^6.0.0"' >> package.json
+          echo '  },' >> package.json
+          echo '  "engines": {' >> package.json
+          echo '    "node": "20.x",' >> package.json
+          echo '    "npm": "10.x"' >> package.json
+          echo '  }' >> package.json
+          echo '}' >> package.json
         fi
 
         # Verify node_modules exists and has required packages
