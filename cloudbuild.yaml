@@ -7,7 +7,7 @@ steps:
       - '-c'
       - |
         echo "Installing production dependencies..."
-        npm install express@^4.18.2 cors@^2.8.5 dotenv@^16.0.3 mongoose@^7.0.3 multer@^1.4.5-lts.1 ethers@^6.0.0 --legacy-peer-deps
+        npm install express@^4.18.2 cors@^2.8.5 dotenv@^16.0.3 mongoose@^7.0.3 multer@^1.4.5-lts.1 ethers@^6.0.0 --production --legacy-peer-deps
         echo "Dependencies installed successfully"
 
   # Enable App Engine API
@@ -66,19 +66,9 @@ steps:
         EOF
         fi
         
-        # Handle package.json
-        if [ -f "package.json" ]; then
-          echo "Found existing package.json - checking start script"
-          if ! grep -q '"start".*"node server.js"' package.json; then
-            echo "Updating start script in existing package.json"
-            cp package.json package.json.backup
-            sed -i 's/"start": "[^"]*"/"start": "node server.js"/g' package.json
-          else
-            echo "✓ Package.json already has correct start script"
-          fi
-        else
-          echo "Creating new package.json..."
-          cat > package.json << 'EOF'
+        # Create clean package.json for deployment (no hardhat deps)
+        echo "Creating deployment package.json without hardhat dependencies..."
+        cat > package.json << 'EOF'
         {
           "name": "myvote-backend",
           "version": "1.0.0",
@@ -101,7 +91,6 @@ steps:
           }
         }
         EOF
-        fi
         
         # Create app.yaml
         echo "Creating app.yaml..."
@@ -144,7 +133,7 @@ steps:
           session_affinity: false
         EOF
         
-        # Create .gcloudignore
+        # Create .gcloudignore to exclude development files
         cat > .gcloudignore << 'EOF'
         .git
         .github
@@ -165,7 +154,16 @@ steps:
         npm-debug.log*
         yarn-debug.log*
         yarn-error.log*
+        # Exclude hardhat development files
+        @nomiclabs/
+        @nomicfoundation/
+        @typechain/
+        typechain/
+        hardhat/
         EOF
+        
+        # Remove package-lock.json to avoid conflicts
+        rm -f package-lock.json
         
         # Ensure required directories exist
         mkdir -p uploads
