@@ -1,8 +1,8 @@
 steps:
-  # Install dependencies
+  # Install dependencies with legacy peer deps to handle ethers version conflict
   - name: 'gcr.io/cloud-builders/npm'
     id: 'install'
-    args: ['install']
+    args: ['install', '--legacy-peer-deps']
   
   # Enable required APIs
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -23,6 +23,9 @@ steps:
     args:
       - '-c'
       - |
+        # Create deployments directory if it doesn't exist
+        mkdir -p deployments
+        
         # Check if we have a stored contract address in Cloud Storage
         CONTRACT_FILE="gs://notional-yeti-461501-r9-contracts/contract-address.txt"
         if gsutil -q stat "$${CONTRACT_FILE}"; then
@@ -51,9 +54,14 @@ steps:
           npm run deploy:sepolia
           
           # Store the contract address for future deployments
-          CONTRACT_ADDRESS=$$(cat deployments/sepolia.json | grep -o '"contractAddress": "[^"]*' | grep -o '[^"]*$')
-          echo "$$CONTRACT_ADDRESS" > ./contract-address.txt
-          echo "Contract address: $$CONTRACT_ADDRESS"
+          if [ -f "./deployments/sepolia.json" ]; then
+            CONTRACT_ADDRESS=$$(cat deployments/sepolia.json | grep -o '"contractAddress": "[^"]*' | grep -o '[^"]*$$')
+            echo "$$CONTRACT_ADDRESS" > ./contract-address.txt
+            echo "Contract address: $$CONTRACT_ADDRESS"
+          else
+            echo "Error: Contract deployment failed - sepolia.json not found"
+            exit 1
+          fi
         else
           echo "Using existing contract - skipping deployment"
         fi
@@ -78,7 +86,7 @@ steps:
         fi
     waitFor: ['deploy-contract']
   
-  # Read contract address and create .env file
+  # Read contract address and create app.yaml file
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'create-env'
     entrypoint: 'bash'
@@ -86,13 +94,13 @@ steps:
       - '-c'
       - |
         echo "Reading contract address from sepolia.json"
-        CONTRACT_ADDRESS=$$(cat deployments/sepolia.json | grep -o '"contractAddress": "[^"]*' | grep -o '[^"]*$')
-        echo "Using contract address: $$CONTRACT_ADDRESS"
-        echo "PORT=8080" > .env
-        echo "CONTRACT_ADDRESS=$$CONTRACT_ADDRESS" >> .env
-        echo "PRIVATE_KEY=${_PRIVATE_KEY}" >> .env
-        echo "ADMIN_ADDRESS=${_ADMIN_ADDRESS}" >> .env
-        echo "SEPOLIA_RPC_URL=${_SEPOLIA_RPC_URL}" >> .env
+        if [ -f "./deployments/sepolia.json" ]; then
+          CONTRACT_ADDRESS=$$(cat deployments/sepolia.json | grep -o '"contractAddress": "[^"]*' | grep -o '[^"]*$$')
+          echo "Using contract address: $$CONTRACT_ADDRESS"
+        else
+          echo "Error: sepolia.json not found"
+          exit 1
+        fi
 
         # Create .gcloudignore file
         echo "# This file specifies files that are *not* uploaded to Google Cloud" > .gcloudignore
@@ -111,6 +119,9 @@ steps:
         echo "cache/" >> .gcloudignore
         echo "# Keep the deployment info" >> .gcloudignore
         echo "!deployments/sepolia.json" >> .gcloudignore
+        echo "!server.js" >> .gcloudignore
+        echo "!package.json" >> .gcloudignore
+        echo "!package-lock.json" >> .gcloudignore
         
         # Update app.yaml to use nodejs20 runtime with automatic scaling
         echo "runtime: nodejs20" > app.yaml
@@ -119,6 +130,7 @@ steps:
         echo "# Environment variables" >> app.yaml
         echo "env_variables:" >> app.yaml
         echo "  NODE_ENV: 'production'" >> app.yaml
+        echo "  PORT: '8080'" >> app.yaml
         echo "  CONTRACT_ADDRESS: \"$$CONTRACT_ADDRESS\"" >> app.yaml
         echo "  SEPOLIA_RPC_URL: \"${_SEPOLIA_RPC_URL}\"" >> app.yaml
         echo "  ADMIN_ADDRESS: \"${_ADMIN_ADDRESS}\"" >> app.yaml
@@ -130,6 +142,22 @@ steps:
         echo "  min_instances: 1" >> app.yaml
         echo "  max_instances: 5" >> app.yaml
         echo "  max_concurrent_requests: 80" >> app.yaml
+        echo "" >> app.yaml
+        echo "# Health checks" >> app.yaml
+        echo "readiness_check:" >> app.yaml
+        echo "  path: \"/health\"" >> app.yaml
+        echo "  check_interval_sec: 5" >> app.yaml
+        echo "  timeout_sec: 4" >> app.yaml
+        echo "  failure_threshold: 2" >> app.yaml
+        echo "  success_threshold: 2" >> app.yaml
+        echo "  app_start_timeout_sec: 300" >> app.yaml
+        echo "" >> app.yaml
+        echo "liveness_check:" >> app.yaml
+        echo "  path: \"/health\"" >> app.yaml
+        echo "  check_interval_sec: 30" >> app.yaml
+        echo "  timeout_sec: 4" >> app.yaml
+        echo "  failure_threshold: 2" >> app.yaml
+        echo "  success_threshold: 2" >> app.yaml
         echo "" >> app.yaml
         echo "# Use the correct start command" >> app.yaml
         echo "entrypoint: npm start" >> app.yaml
@@ -157,7 +185,9 @@ steps:
           echo "Select region 'us-central' and then rerun this build."
           echo ""
           echo "Until then, we're skipping deployment but marking the build as successful."
-          echo "The Ethereum contract was successfully deployed at: $$(cat deployments/sepolia.json | grep -o '"contractAddress": "[^"]*' | grep -o '[^"]*$')"
+          if [ -f "./deployments/sepolia.json" ]; then
+            echo "The Ethereum contract was successfully deployed at: $$(cat deployments/sepolia.json | grep -o '"contractAddress": "[^"]*' | grep -o '[^"]*$$')"
+          fi
           echo "You can manually deploy later after creating the App Engine app."
         fi
     waitFor: ['create-env', 'enable-apis']
