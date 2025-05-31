@@ -142,14 +142,11 @@ steps:
         echo "compile.env" >> .gcloudignore
         echo "contract-address.txt" >> .gcloudignore
         echo "deployments/" >> .gcloudignore
-        echo "node_modules/" >> .gcloudignore
+        # echo "node_modules/" >> .gcloudignore  # REMOVED - App Engine needs dependencies
         echo ".env" >> .gcloudignore
         echo ".env.*" >> .gcloudignore
         echo "Dockerfile" >> .gcloudignore
         echo ".dockerignore" >> .gcloudignore
-        
-        # DON'T exclude node_modules - App Engine needs dependencies
-        # echo "node_modules/" >> .gcloudignore  # REMOVED THIS LINE
         
         # Verify server.js exists - don't modify it, just check
         if [ -f "server.js" ]; then
