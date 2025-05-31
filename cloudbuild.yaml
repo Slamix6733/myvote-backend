@@ -25,9 +25,9 @@ steps:
       - |
         # Check if we have a stored contract address in Cloud Storage
         CONTRACT_FILE="gs://notional-yeti-461501-r9-contracts/contract-address.txt"
-        if gsutil -q stat $CONTRACT_FILE; then
+        if gsutil -q stat "$${CONTRACT_FILE}"; then
           echo "Contract file exists - using existing contract"
-          gsutil cp $CONTRACT_FILE ./contract-address.txt
+          gsutil cp "$${CONTRACT_FILE}" ./contract-address.txt
           STORED_CONTRACT_ADDRESS=$$(cat contract-address.txt)
           echo "Using existing contract at: $$STORED_CONTRACT_ADDRESS"
           echo "$$STORED_CONTRACT_ADDRESS" > ./deployments/contract-address.txt
