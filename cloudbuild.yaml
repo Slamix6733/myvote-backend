@@ -155,7 +155,7 @@ steps:
         else
           echo "ERROR: server.js not found in project root!"
           echo "Creating minimal server.js file..."
-          cat > server.js << 'EOF'
+          cat > server.js << 'SERVERJS_EOF'
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
@@ -191,7 +191,7 @@ app.get('/api/status', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-EOF
+SERVERJS_EOF
           echo "Created minimal server.js file"
         fi
 
@@ -215,39 +215,41 @@ EOF
           if ! grep -q '"engines"' package.json; then
             echo "Adding engines specification"
             # Add engines before the last closing brace
-            sed -i '$i\  ,"engines": {\n    "node": "20.x",\n    "npm": "10.x"\n  }' package.json
+            sed -i '$$i\  ,"engines": {\n    "node": "20.x",\n    "npm": "10.x"\n  }' package.json
           fi
         else
           echo "Creating new package.json..."
-          echo '{' > package.json
-          echo '  "name": "myvote-backend",' >> package.json
-          echo '  "version": "1.0.0",' >> package.json
-          echo '  "description": "MyVote Backend API",' >> package.json
-          echo '  "main": "server.js",' >> package.json
-          echo '  "scripts": {' >> package.json
-          echo '    "start": "node server.js",' >> package.json
-          echo '    "dev": "nodemon server.js"' >> package.json
-          echo '  },' >> package.json
-          echo '  "dependencies": {' >> package.json
-          echo '    "express": "^4.18.2",' >> package.json
-          echo '    "cors": "^2.8.5",' >> package.json
-          echo '    "dotenv": "^16.0.3",' >> package.json
-          echo '    "mongoose": "^7.0.3",' >> package.json
-          echo '    "multer": "^1.4.5-lts.1",' >> package.json
-          echo '    "ethers": "^6.0.0"' >> package.json
-          echo '  },' >> package.json
-          echo '  "engines": {' >> package.json
-          echo '    "node": "20.x",' >> package.json
-          echo '    "npm": "10.x"' >> package.json
-          echo '  }' >> package.json
-          echo '}' >> package.json
+          cat > package.json << 'PACKAGEJSON_EOF'
+{
+  "name": "myvote-backend",
+  "version": "1.0.0",
+  "description": "MyVote Backend API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "mongoose": "^7.0.3",
+    "multer": "^1.4.5-lts.1",
+    "ethers": "^6.0.0"
+  },
+  "engines": {
+    "node": "20.x",
+    "npm": "10.x"
+  }
+}
+PACKAGEJSON_EOF
         fi
 
         # Ensure uploads directory exists
         mkdir -p uploads
         
         # Create app.yaml for App Engine with simpler configuration
-        cat > app.yaml << EOF
+        cat > app.yaml << 'APPYAML_EOF'
 runtime: nodejs20
 
 # Environment variables
@@ -281,7 +283,7 @@ liveness_check:
   timeout_sec: 4
   failure_threshold: 4
   success_threshold: 2
-EOF
+APPYAML_EOF
         
         echo "Created app.yaml with contract address: $$CONTRACT_ADDRESS"
         echo "Listing files in current directory:"
@@ -322,7 +324,7 @@ EOF
           # Deploy with verbose output for debugging
           gcloud app deploy --quiet --verbosity=info
           
-          if [ $? -eq 0 ]; then
+          if [ $$? -eq 0 ]; then
             echo "Backend deployment completed successfully!"
             # Get the deployed URL
             gcloud app browse --no-launch-browser
