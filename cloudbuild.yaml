@@ -53,8 +53,7 @@ steps:
           # Store the contract address for future deployments
           CONTRACT_ADDRESS=$$(cat deployments/sepolia.json | grep -o '"contractAddress": "[^"]*' | grep -o '[^"]*$')
           echo "$$CONTRACT_ADDRESS" > ./contract-address.txt
-          gsutil cp ./contract-address.txt gs://notional-yeti-461501-r9-contracts/contract-address.txt
-          echo "Saved contract address $$CONTRACT_ADDRESS to Cloud Storage"
+          echo "Contract address: $$CONTRACT_ADDRESS"
         else
           echo "Using existing contract - skipping deployment"
         fi
@@ -62,6 +61,22 @@ steps:
       - 'PRIVATE_KEY=${_PRIVATE_KEY}'
       - 'SEPOLIA_RPC_URL=${_SEPOLIA_RPC_URL}'
     waitFor: ['check-contract']
+  
+  # Add a separate step to save to cloud storage
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'save-contract'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        if [ -f "./contract-address.txt" ]; then
+          CONTRACT_ADDRESS=$$(cat ./contract-address.txt)
+          gsutil cp ./contract-address.txt gs://notional-yeti-461501-r9-contracts/contract-address.txt
+          echo "Saved contract address $$CONTRACT_ADDRESS to Cloud Storage"
+        else
+          echo "No contract address file found to save"
+        fi
+    waitFor: ['deploy-contract']
   
   # Read contract address and create .env file
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -97,7 +112,7 @@ steps:
         echo "# Keep the deployment info" >> .gcloudignore
         echo "!deployments/sepolia.json" >> .gcloudignore
         
-        # Update app.yaml to use nodejs20 runtime with contract address included
+        # Update app.yaml to use nodejs20 runtime with automatic scaling
         echo "runtime: nodejs20" > app.yaml
         echo "env: standard" >> app.yaml
         echo "" >> app.yaml
@@ -107,17 +122,19 @@ steps:
         echo "  CONTRACT_ADDRESS: \"$$CONTRACT_ADDRESS\"" >> app.yaml
         echo "  SEPOLIA_RPC_URL: \"${_SEPOLIA_RPC_URL}\"" >> app.yaml
         echo "" >> app.yaml
-        echo "# Use basic scaling" >> app.yaml
-        echo "basic_scaling:" >> app.yaml
+        echo "# Use automatic scaling instead of basic scaling" >> app.yaml
+        echo "automatic_scaling:" >> app.yaml
+        echo "  min_instances: 1" >> app.yaml
         echo "  max_instances: 2" >> app.yaml
-        echo "  idle_timeout: 10m" >> app.yaml
+        echo "  min_idle_instances: 1" >> app.yaml
+        echo "  max_concurrent_requests: 50" >> app.yaml
         echo "" >> app.yaml
         echo "# Add entrypoint for reliable startup" >> app.yaml
         echo "entrypoint: npm start" >> app.yaml
         echo "" >> app.yaml
-        echo "# Increase instance class for better performance" >> app.yaml
+        echo "# Now F2 instance class is compatible" >> app.yaml
         echo "instance_class: F2" >> app.yaml
-    waitFor: ['deploy-contract']
+    waitFor: ['save-contract']
   
   # Check if App Engine exists and create deployment script that handles both cases
   - name: 'gcr.io/cloud-builders/gcloud'
