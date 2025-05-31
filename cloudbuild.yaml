@@ -1,339 +1,182 @@
 steps:
-  # Install dependencies with custom approach to handle missing packages
+  # Install dependencies
   - name: 'gcr.io/cloud-builders/npm'
-    id: 'install-production'
+    id: 'install-deps'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
-        echo "Installing production dependencies with error handling..."
-        
-        # First, install only the essential backend packages manually
-        npm install express@^4.18.2 --legacy-peer-deps || echo "Express install failed"
-        npm install cors@^2.8.5 --legacy-peer-deps || echo "CORS install failed"
-        npm install dotenv@^16.0.3 --legacy-peer-deps || echo "Dotenv install failed"
-        npm install mongoose@^7.0.3 --legacy-peer-deps || echo "Mongoose install failed"
-        npm install multer@^1.4.5-lts.1 --legacy-peer-deps || echo "Multer install failed"
-        npm install ethers@^6.0.0 --legacy-peer-deps || echo "Ethers install failed"
-        
-        # Try to install from package.json but ignore failures
-        npm install --omit=dev --legacy-peer-deps || echo "Package.json install failed, continuing with manual installs..."
-        
-        echo "Production dependencies installation completed"
-  
-  # Enable required APIs
+        echo "Installing production dependencies..."
+        npm install express@^4.18.2 cors@^2.8.5 dotenv@^16.0.3 mongoose@^7.0.3 multer@^1.4.5-lts.1 ethers@^6.0.0 --legacy-peer-deps
+        echo "Dependencies installed successfully"
+
+  # Enable App Engine API
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'enable-apis'
     args: ['services', 'enable', 'appengine.googleapis.com']
-    waitFor: ['-']  # Run in parallel with install
-  
-  # Try to install dev dependencies separately (for contract compilation)
-  - name: 'gcr.io/cloud-builders/npm'
-    id: 'install-dev'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        # Skip hardhat installation completely for now
-        echo "Skipping hardhat installation due to package conflicts"
-        echo "CAN_COMPILE=false" > compile.env
-        echo "Dev dependencies step completed (hardhat disabled)"
-    waitFor: ['install-production']
-  
-  # Conditionally compile contracts only if hardhat is available
-  - name: 'gcr.io/cloud-builders/npm'
-    id: 'compile'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        # Create deployments directory
-        mkdir -p deployments
-        
-        if [ -f "compile.env" ] && grep -q "CAN_COMPILE=true" compile.env; then
-          echo "Attempting contract compilation..."
-          npm run compile || echo "Contract compilation failed, using fallback"
-        else
-          echo "Skipping contract compilation - using fallback contract address"
-        fi
-        
-        # Always create a fallback deployment file with proper variable syntax
-        FALLBACK_CONTRACT_ADDR="0x1234567890123456789012345678901234567890"
-        echo '{"contractAddress": "'$$FALLBACK_CONTRACT_ADDR'"}' > ./deployments/sepolia.json
-    waitFor: ['install-dev']
-  
-  # Check if contract already exists in cloud storage or use fallback
+    waitFor: ['-']
+
+  # Create deployment files
   - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'check-contract'
+    id: 'create-files'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
-        # Check if we have a stored contract address in Cloud Storage
-        CONTRACT_FILE="gs://notional-yeti-461501-r9-contracts/contract-address.txt"
-        if gsutil -q stat "$${CONTRACT_FILE}"; then
-          echo "Found existing contract in cloud storage"
-          gsutil cp "$${CONTRACT_FILE}" ./contract-address.txt
-          STORED_CONTRACT_ADDRESS=$$(cat contract-address.txt)
-          echo "Using existing contract at: $$STORED_CONTRACT_ADDRESS"
-          # Update the deployment file with real contract address
-          echo '{"contractAddress": "'$$STORED_CONTRACT_ADDRESS'"}' > ./deployments/sepolia.json
-        else
-          echo "No existing contract found - will use current deployment file"
-          # Extract address from current deployment file
-          CONTRACT_ADDRESS=$$(cat deployments/sepolia.json | grep -o '"contractAddress": "[^"]*' | grep -o '[^"]*$$')
-          echo "Using contract address from deployment: $$CONTRACT_ADDRESS"
-          echo "$$CONTRACT_ADDRESS" > ./contract-address.txt
-        fi
-    waitFor: ['compile']
-  
-  # Skip contract deployment for now and focus on backend deployment
-  - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'save-contract'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        if [ -f "./contract-address.txt" ]; then
-          CONTRACT_ADDRESS=$$(cat ./contract-address.txt)
-          echo "Contract address to use: $$CONTRACT_ADDRESS"
-          # Only save to cloud storage if it's not the fallback address
-          if [ "$$CONTRACT_ADDRESS" != "0x1234567890123456789012345678901234567890" ]; then
-            gsutil cp ./contract-address.txt gs://notional-yeti-461501-r9-contracts/contract-address.txt || echo "Failed to save to cloud storage"
-            echo "Saved contract address $$CONTRACT_ADDRESS to Cloud Storage"
-          else
-            echo "Using fallback contract address, not saving to cloud storage"
-          fi
-        else
-          echo "No contract address file found"
-        fi
-    waitFor: ['check-contract']
-  
-  # Create app.yaml and deployment files
-  - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'create-env'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        echo "Creating deployment configuration..."
-        if [ -f "./deployments/sepolia.json" ]; then
-          CONTRACT_ADDRESS=$$(cat deployments/sepolia.json | grep -o '"contractAddress": "[^"]*' | grep -o '[^"]*$$')
-          echo "Using contract address: $$CONTRACT_ADDRESS"
-        else
-          CONTRACT_ADDRESS="0x1234567890123456789012345678901234567890"
-          echo "Using fallback contract address: $$CONTRACT_ADDRESS"
-        fi
-
-        # Create .gcloudignore file to minimize deployment size
-        echo "# This file specifies files that are *not* uploaded to Google Cloud" > .gcloudignore
-        echo "# using gcloud. It follows the same syntax as .gitignore." >> .gcloudignore
-        echo ".git" >> .gcloudignore
-        echo ".github" >> .gcloudignore
-        echo ".gitignore" >> .gcloudignore
-        echo ".vscode/" >> .gcloudignore
-        echo "test/" >> .gcloudignore
-        echo "contracts/" >> .gcloudignore
-        echo "hardhat.config.js" >> .gcloudignore
-        echo "artifacts/" >> .gcloudignore
-        echo "cache/" >> .gcloudignore
-        echo "scripts/" >> .gcloudignore
-        echo "*.md" >> .gcloudignore
-        echo "compile.env" >> .gcloudignore
-        echo "contract-address.txt" >> .gcloudignore
-        echo "deployments/" >> .gcloudignore
-        echo ".env" >> .gcloudignore
-        echo ".env.*" >> .gcloudignore
-        echo "Dockerfile" >> .gcloudignore
-        echo ".dockerignore" >> .gcloudignore
+        echo "Creating deployment files..."
         
-        # Verify server.js exists and create if missing
-        if [ -f "server.js" ]; then
-          echo "server.js exists - verifying content"
-          echo "First few lines of server.js:"
-          head -5 server.js
-        else
-          echo "ERROR: server.js not found in project root!"
-          echo "Creating minimal server.js file..."
-          cat > server.js << 'EOF'
-const express = require('express');
-const cors = require('cors');
-const dotenv = require('dotenv');
-
-dotenv.config();
-
-const app = express();
-const PORT = process.env.PORT || 8080;
-
-app.use(cors());
-app.use(express.json());
-
-app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'healthy', 
-    timestamp: new Date().toISOString(),
-    version: '1.0.0'
-  });
-});
-
-app.get('/api/status', (req, res) => {
-  res.json({ 
-    message: 'MyVote Backend API is running',
-    contractAddress: process.env.CONTRACT_ADDRESS || 'Not configured'
-  });
-});
-
-app.listen(PORT, () => {
-  console.log('Server running on port ' + PORT);
-});
-EOF
-          echo "Created minimal server.js file"
+        # Create server.js if it doesn't exist
+        if [ ! -f "server.js" ]; then
+          echo "Creating server.js..."
+          cat << 'SERVERJS' > server.js
+        const express = require('express');
+        const cors = require('cors');
+        const dotenv = require('dotenv');
+        
+        dotenv.config();
+        
+        const app = express();
+        const PORT = process.env.PORT || 8080;
+        
+        app.use(cors());
+        app.use(express.json());
+        
+        app.get('/health', (req, res) => {
+          res.status(200).json({
+            status: 'healthy',
+            timestamp: new Date().toISOString(),
+            version: '1.0.0'
+          });
+        });
+        
+        app.get('/api/status', (req, res) => {
+          res.json({
+            message: 'MyVote Backend API is running',
+            contractAddress: process.env.CONTRACT_ADDRESS || 'Not configured'
+          });
+        });
+        
+        app.listen(PORT, () => {
+          console.log('Server running on port ' + PORT);
+        });
+        SERVERJS
         fi
-
-        # Handle package.json more carefully
-        if [ -f "package.json" ]; then
-          echo "package.json exists - checking if it needs updates"
-          cp package.json package.json.backup
-          
-          if grep -q '"start".*"node server.js"' package.json; then
-            echo "Start script is correctly set"
-          else
-            echo "Updating start script in package.json"
-            sed -i 's/"start": "[^"]*"/"start": "node server.js"/g' package.json
-          fi
-          
-          if ! grep -q '"engines"' package.json; then
-            echo "Adding engines specification"
-            sed -i 's/}$/,"engines":{"node":"20.x","npm":"10.x"}}/' package.json
-          fi
-        else
-          echo "Creating new package.json..."
-          cat > package.json << 'EOF'
-{
-  "name": "myvote-backend",
-  "version": "1.0.0",
-  "description": "MyVote Backend API",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
-  },
-  "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "dotenv": "^16.0.3",
-    "mongoose": "^7.0.3",
-    "multer": "^1.4.5-lts.1",
-    "ethers": "^6.0.0"
-  },
-  "engines": {
-    "node": "20.x",
-    "npm": "10.x"
-  }
-}
-EOF
-        fi
-
-        # Ensure uploads directory exists
+        
+        # Create package.json
+        cat << 'PACKAGEJSON' > package.json
+        {
+          "name": "myvote-backend",
+          "version": "1.0.0",
+          "description": "MyVote Backend API",
+          "main": "server.js",
+          "scripts": {
+            "start": "node server.js"
+          },
+          "dependencies": {
+            "express": "^4.18.2",
+            "cors": "^2.8.5",
+            "dotenv": "^16.0.3",
+            "mongoose": "^7.0.3",
+            "multer": "^1.4.5-lts.1",
+            "ethers": "^6.0.0"
+          },
+          "engines": {
+            "node": "20.x",
+            "npm": "10.x"
+          }
+        }
+        PACKAGEJSON
+        
+        # Create app.yaml
+        cat << 'APPYAML' > app.yaml
+        runtime: nodejs20
+        
+        env_variables:
+          NODE_ENV: production
+          PORT: 8080
+          CONTRACT_ADDRESS: "${_CONTRACT_ADDRESS}"
+          SEPOLIA_RPC_URL: "${_SEPOLIA_RPC_URL}"
+          ADMIN_ADDRESS: "${_ADMIN_ADDRESS}"
+          MONGODB_URI: "${_MONGODB_URI}"
+          ENCRYPTION_KEY: "${_ENCRYPTION_KEY}"
+        
+        automatic_scaling:
+          min_instances: 1
+          max_instances: 3
+          target_cpu_utilization: 0.6
+        
+        readiness_check:
+          path: "/health"
+          check_interval_sec: 5
+          timeout_sec: 4
+          failure_threshold: 2
+          success_threshold: 2
+          app_start_timeout_sec: 300
+        
+        liveness_check:
+          path: "/health"
+          check_interval_sec: 30
+          timeout_sec: 4
+          failure_threshold: 4
+          success_threshold: 2
+        APPYAML
+        
+        # Create .gcloudignore
+        cat << 'GCLOUDIGNORE' > .gcloudignore
+        .git
+        .github
+        .gitignore
+        .vscode/
+        test/
+        contracts/
+        hardhat.config.js
+        artifacts/
+        cache/
+        scripts/
+        *.md
+        .env
+        .env.*
+        Dockerfile
+        .dockerignore
+        GCLOUDIGNORE
+        
         mkdir -p uploads
         
-        cat > app.yaml << 'EOF'
-runtime: nodejs20
-
-# Environment variables
-env_variables:
-  NODE_ENV: 'production'
-  PORT: '8080'
-  CONTRACT_ADDRESS: "$$CONTRACT_ADDRESS"
-  SEPOLIA_RPC_URL: "${_SEPOLIA_RPC_URL}"
-  ADMIN_ADDRESS: "${_ADMIN_ADDRESS}"
-  MONGODB_URI: "${_MONGODB_URI}"
-  ENCRYPTION_KEY: "${_ENCRYPTION_KEY}"
-
-# Automatic scaling
-automatic_scaling:
-  min_instances: 1
-  max_instances: 3
-  target_cpu_utilization: 0.6
-
-# Health checks
-readiness_check:
-  path: "/health"
-  check_interval_sec: 5
-  timeout_sec: 4
-  failure_threshold: 2
-  success_threshold: 2
-  app_start_timeout_sec: 300
-
-liveness_check:
-  path: "/health"
-  check_interval_sec: 30
-  timeout_sec: 4
-  failure_threshold: 4
-  success_threshold: 2
-EOF
-        
-        echo "Created app.yaml with contract address: $$CONTRACT_ADDRESS"
-        echo "Listing files in current directory:"
+        echo "Files created successfully"
         ls -la
-        echo "Verifying server.js exists:"
-        [ -f "server.js" ] && echo "✓ server.js found" || echo "✗ server.js missing"
-        echo "Project structure verified and configured for deployment"
-    waitFor: ['save-contract']
-  
+    waitFor: ['install-deps']
+
   # Deploy to App Engine
   - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'deploy-backend'
+    id: 'deploy'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
-        echo "Starting deployment process..."
-        echo "Current directory contents:"
-        ls -la
-        
-        if [ ! -f "server.js" ]; then
-          echo "ERROR: server.js not found!"
-          exit 1
-        fi
-        
-        if [ ! -f "app.yaml" ]; then
-          echo "ERROR: app.yaml not found!"
-          exit 1
-        fi
-        
-        echo "Files verified, proceeding with deployment..."
+        echo "Starting deployment..."
         
         if gcloud app describe &>/dev/null; then
-          echo "App Engine application exists, deploying backend..."
-          gcloud app deploy --quiet --verbosity=info
-          
-          if [ $$? -eq 0 ]; then
-            echo "Backend deployment completed successfully!"
-            gcloud app browse --no-launch-browser
-          else
-            echo "Deployment failed!"
-            exit 1
-          fi
+          echo "App Engine application exists, deploying..."
+          gcloud app deploy --quiet
+          echo "Deployment completed!"
+          gcloud app browse --no-launch-browser
         else
-          echo "WARNING: App Engine application does not exist."
-          echo "Please create an App Engine application manually:"
-          echo "1. Go to: https://console.cloud.google.com/appengine/start?project=notional-yeti-461501-r9"
-          echo "2. Select region 'us-central'"
-          echo "3. Rerun this build after creating the app"
-          echo ""
-          echo "Build completed successfully - ready for App Engine creation."
+          echo "App Engine application does not exist."
+          echo "Create it at: https://console.cloud.google.com/appengine/start?project=notional-yeti-461501-r9"
+          echo "Select region: us-central"
+          echo "Then rerun this build."
         fi
-    waitFor: ['create-env', 'enable-apis']
+    waitFor: ['create-files', 'enable-apis']
 
 substitutions:
+  _CONTRACT_ADDRESS: '0x1234567890123456789012345678901234567890'
   _PRIVATE_KEY: ''
   _ADMIN_ADDRESS: ''
   _SEPOLIA_RPC_URL: ''
   _MONGODB_URI: ''
   _ENCRYPTION_KEY: ''
 
-timeout: '1200s'
+timeout: '900s'
 
 options:
   logging: CLOUD_LOGGING_ONLY
