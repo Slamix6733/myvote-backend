@@ -4,6 +4,12 @@ steps:
     id: 'install'
     args: ['install']
   
+  # Enable required APIs
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'enable-apis'
+    args: ['services', 'enable', 'appengine.googleapis.com']
+    waitFor: ['-']  # Run in parallel with install
+  
   # Compile contracts
   - name: 'gcr.io/cloud-builders/npm'
     id: 'compile'
@@ -36,24 +42,11 @@ steps:
         echo "SEPOLIA_RPC_URL=${_SEPOLIA_RPC_URL}" >> .env
     waitFor: ['deploy-contract']
   
-  # List files before deployment (to debug)
-  - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'list-files'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        echo "Listing deployment files:"
-        ls -la
-        echo "Content of deployments directory:"
-        ls -la deployments/ || echo "Deployments directory not found"
-    waitFor: ['create-env']
-  
-  # Deploy to App Engine with verbose logging
+  # Deploy to App Engine
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'deploy-app'
-    args: ['app', 'deploy', '--verbosity=debug']
-    waitFor: ['list-files']
+    args: ['app', 'deploy', '--quiet']
+    waitFor: ['create-env', 'enable-apis']
 
 # Define substitution variables to be configured in the Cloud Build trigger
 substitutions:
