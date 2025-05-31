@@ -4,13 +4,14 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.js",
+    "start": "node server.js",
     "dev": "nodemon index.js",
     "compile": "npx hardhat compile",
     "deploy:local": "npx hardhat run scripts/deploy.js --network localhost",
     "deploy:sepolia": "npx hardhat run scripts/deploy.js --network sepolia",
     "deploy:mumbai": "npx hardhat run scripts/deploy.js --network mumbai",
-    "node": "npx hardhat node"
+    "node": "npx hardhat node",
+    "debug": "node debug.js"
   },
   "keywords": [
     "blockchain",

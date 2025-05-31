@@ -4,8 +4,16 @@ env: standard
 # Environment variables
 env_variables:
   NODE_ENV: 'production'
+  CONTRACT_ADDRESS: '0x2C4C36437953418D15ADcAbbC016E7505F7D0aB2'
 
-# Use basic scaling
-basic_scaling:
+# Use automatic scaling
+automatic_scaling:
+  min_instances: 1
   max_instances: 2
-  idle_timeout: 10m
+  max_concurrent_requests: 50
+
+# Use the debug server temporarily
+entrypoint: npm run debug
+
+# Use the default instance class for now
+instance_class: F1

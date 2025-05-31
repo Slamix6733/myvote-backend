@@ -122,18 +122,17 @@ steps:
         echo "  CONTRACT_ADDRESS: \"$$CONTRACT_ADDRESS\"" >> app.yaml
         echo "  SEPOLIA_RPC_URL: \"${_SEPOLIA_RPC_URL}\"" >> app.yaml
         echo "" >> app.yaml
-        echo "# Use automatic scaling instead of basic scaling" >> app.yaml
+        echo "# Use automatic scaling" >> app.yaml
         echo "automatic_scaling:" >> app.yaml
         echo "  min_instances: 1" >> app.yaml
         echo "  max_instances: 2" >> app.yaml
-        echo "  min_idle_instances: 1" >> app.yaml
         echo "  max_concurrent_requests: 50" >> app.yaml
         echo "" >> app.yaml
-        echo "# Add entrypoint for reliable startup" >> app.yaml
-        echo "entrypoint: npm start" >> app.yaml
+        echo "# Use debug server temporarily" >> app.yaml
+        echo "entrypoint: npm run debug" >> app.yaml
         echo "" >> app.yaml
-        echo "# Now F2 instance class is compatible" >> app.yaml
-        echo "instance_class: F2" >> app.yaml
+        echo "# Use default instance class for now" >> app.yaml
+        echo "instance_class: F1" >> app.yaml
     waitFor: ['save-contract']
   
   # Check if App Engine exists and create deployment script that handles both cases
