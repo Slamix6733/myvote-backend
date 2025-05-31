@@ -50,9 +50,9 @@ steps:
           echo "Skipping contract compilation - using fallback contract address"
         fi
         
-        # Always create a fallback deployment file
-        FALLBACK_CONTRACT="0x1234567890123456789012345678901234567890"
-        echo '{"contractAddress": "'$FALLBACK_CONTRACT'"}' > ./deployments/sepolia.json
+        # Always create a fallback deployment file with proper variable syntax
+        FALLBACK_CONTRACT_ADDR="0x1234567890123456789012345678901234567890"
+        echo '{"contractAddress": "'$$FALLBACK_CONTRACT_ADDR'"}' > ./deployments/sepolia.json
     waitFor: ['install-dev']
   
   # Check if contract already exists in cloud storage or use fallback
