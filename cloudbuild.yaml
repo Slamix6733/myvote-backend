@@ -58,6 +58,19 @@ steps:
         echo "cache/" >> .gcloudignore
         echo "# Keep the deployment info" >> .gcloudignore
         echo "!deployments/sepolia.json" >> .gcloudignore
+        
+        # Update app.yaml to use nodejs20 runtime
+        echo "runtime: nodejs20" > app.yaml
+        echo "env: standard" >> app.yaml
+        echo "" >> app.yaml
+        echo "# Environment variables" >> app.yaml
+        echo "env_variables:" >> app.yaml
+        echo "  NODE_ENV: 'production'" >> app.yaml
+        echo "" >> app.yaml
+        echo "# Use basic scaling" >> app.yaml
+        echo "basic_scaling:" >> app.yaml
+        echo "  max_instances: 2" >> app.yaml
+        echo "  idle_timeout: 10m" >> app.yaml
     waitFor: ['deploy-contract']
   
   # Check if App Engine exists and create deployment script that handles both cases
