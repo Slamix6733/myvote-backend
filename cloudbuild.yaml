@@ -121,6 +121,7 @@ steps:
         echo "  NODE_ENV: 'production'" >> app.yaml
         echo "  CONTRACT_ADDRESS: \"$$CONTRACT_ADDRESS\"" >> app.yaml
         echo "  SEPOLIA_RPC_URL: \"${_SEPOLIA_RPC_URL}\"" >> app.yaml
+        echo "  ADMIN_ADDRESS: \"${_ADMIN_ADDRESS}\"" >> app.yaml
         echo "" >> app.yaml
         echo "# Use automatic scaling" >> app.yaml
         echo "automatic_scaling:" >> app.yaml
@@ -128,8 +129,8 @@ steps:
         echo "  max_instances: 2" >> app.yaml
         echo "  max_concurrent_requests: 50" >> app.yaml
         echo "" >> app.yaml
-        echo "# Use debug server temporarily" >> app.yaml
-        echo "entrypoint: npm run debug" >> app.yaml
+        echo "# Use the main server" >> app.yaml
+        echo "entrypoint: npm start" >> app.yaml
         echo "" >> app.yaml
         echo "# Use default instance class for now" >> app.yaml
         echo "instance_class: F1" >> app.yaml
