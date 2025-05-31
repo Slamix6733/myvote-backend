@@ -155,7 +155,7 @@ steps:
         else
           echo "ERROR: server.js not found in project root!"
           echo "Creating minimal server.js file..."
-          cat > server.js << 'SERVERJS_EOF'
+          cat > server.js << 'EOF'
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
@@ -191,35 +191,29 @@ app.get('/api/status', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-SERVERJS_EOF
+EOF
           echo "Created minimal server.js file"
         fi
 
         # Handle package.json more carefully
         if [ -f "package.json" ]; then
           echo "package.json exists - checking if it needs updates"
-          
-          # Backup existing package.json
           cp package.json package.json.backup
           
-          # Check if it has the correct start script
           if grep -q '"start".*"node server.js"' package.json; then
             echo "Start script is correctly set"
           else
             echo "Updating start script in package.json"
-            # Use sed to update the start script
             sed -i 's/"start": "[^"]*"/"start": "node server.js"/g' package.json
           fi
           
-          # Ensure engines are specified
           if ! grep -q '"engines"' package.json; then
             echo "Adding engines specification"
-            # Add engines before the last closing brace
-            sed -i '$$i\  ,"engines": {\n    "node": "20.x",\n    "npm": "10.x"\n  }' package.json
+            sed -i 's/}$/,"engines":{"node":"20.x","npm":"10.x"}}/' package.json
           fi
         else
           echo "Creating new package.json..."
-          cat > package.json << 'PACKAGEJSON_EOF'
+          cat > package.json << 'EOF'
 {
   "name": "myvote-backend",
   "version": "1.0.0",
@@ -242,14 +236,13 @@ SERVERJS_EOF
     "npm": "10.x"
   }
 }
-PACKAGEJSON_EOF
+EOF
         fi
 
         # Ensure uploads directory exists
         mkdir -p uploads
         
-        # Create app.yaml for App Engine with simpler configuration
-        cat > app.yaml << 'APPYAML_EOF'
+        cat > app.yaml << 'EOF'
 runtime: nodejs20
 
 # Environment variables
@@ -283,7 +276,7 @@ liveness_check:
   timeout_sec: 4
   failure_threshold: 4
   success_threshold: 2
-APPYAML_EOF
+EOF
         
         echo "Created app.yaml with contract address: $$CONTRACT_ADDRESS"
         echo "Listing files in current directory:"
@@ -304,7 +297,6 @@ APPYAML_EOF
         echo "Current directory contents:"
         ls -la
         
-        # Verify required files exist
         if [ ! -f "server.js" ]; then
           echo "ERROR: server.js not found!"
           exit 1
@@ -317,16 +309,12 @@ APPYAML_EOF
         
         echo "Files verified, proceeding with deployment..."
         
-        # Check if App Engine application exists
         if gcloud app describe &>/dev/null; then
           echo "App Engine application exists, deploying backend..."
-          
-          # Deploy with verbose output for debugging
           gcloud app deploy --quiet --verbosity=info
           
           if [ $$? -eq 0 ]; then
             echo "Backend deployment completed successfully!"
-            # Get the deployed URL
             gcloud app browse --no-launch-browser
           else
             echo "Deployment failed!"
@@ -343,17 +331,14 @@ APPYAML_EOF
         fi
     waitFor: ['create-env', 'enable-apis']
 
-# Define substitution variables
 substitutions:
-  _PRIVATE_KEY: '' # Set this in your Cloud Build trigger
-  _ADMIN_ADDRESS: '' # Set this in your Cloud Build trigger  
-  _SEPOLIA_RPC_URL: '' # Set this in your Cloud Build trigger
-  _MONGODB_URI: '' # Set this in your Cloud Build trigger
-  _ENCRYPTION_KEY: '' # Set this in your Cloud Build trigger
+  _PRIVATE_KEY: ''
+  _ADMIN_ADDRESS: ''
+  _SEPOLIA_RPC_URL: ''
+  _MONGODB_URI: ''
+  _ENCRYPTION_KEY: ''
 
-# Set timeout for the entire build
-timeout: '1200s' # 20 minutes
+timeout: '1200s'
 
-# Enable cloud logging for better debugging
 options:
   logging: CLOUD_LOGGING_ONLY
