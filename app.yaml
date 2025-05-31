@@ -1,13 +1,17 @@
 runtime: nodejs16
 env: standard
 
-# Properly specify files to include
-includes:
-  - .env
-  - deployments/**
-  - artifacts/**
+# Use env_variables to inject environment variables
+env_variables:
+  NODE_ENV: 'production'
 
 # Use basic scaling correctly
 basic_scaling:
   max_instances: 2
   idle_timeout: 10m
+
+# Properly list files to be included specifically
+skip_files:
+- ^node_modules$
+- ^.git$
+- ^.env$
