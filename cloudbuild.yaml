@@ -123,6 +123,54 @@ steps:
         echo "✓ Configuration files created with contract address: $$CONTRACT_ADDRESS"
     waitFor: ['extract-contract']
 
+  # Verify existing routes are present
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'verify-routes'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Verifying existing routes..."
+        
+        if [ -d "routes" ]; then
+          echo "✓ Found routes directory"
+          echo "Contents of routes directory:"
+          ls -la routes/
+          
+          # Check each expected route file
+          for route in voters.js upload.js blockchain.js admin.js health.js; do
+            if [ -f "routes/$route" ]; then
+              echo "✓ Found routes/$route"
+              echo "First few lines of routes/$route:"
+              head -5 "routes/$route"
+            else
+              echo "⚠️  Missing routes/$route"
+            fi
+          done
+        else
+          echo "❌ Routes directory not found!"
+          exit 1
+        fi
+        
+        # Also check for controllers and utils that routes depend on
+        if [ -d "controllers" ]; then
+          echo "✓ Found controllers directory:"
+          ls -la controllers/
+        fi
+        
+        if [ -d "utils" ]; then
+          echo "✓ Found utils directory:"
+          ls -la utils/
+        fi
+        
+        if [ -d "models" ]; then
+          echo "✓ Found models directory:"
+          ls -la models/
+        fi
+        
+        echo "Route verification complete"
+    waitFor: ['extract-contract']
+
   # Deploy to App Engine  
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'deploy'
@@ -133,7 +181,7 @@ steps:
         echo "Deploying to App Engine..."
         rm -f package-lock.json
         gcloud app deploy --quiet --verbosity=info
-    waitFor: ['create-config', 'enable-apis']
+    waitFor: ['create-config', 'enable-apis', 'verify-routes']
 
 substitutions:
   _PRIVATE_KEY: '0xc9fc1cb318be162465ee2e222b94432bbbde124d161a4b058ea74f3ecd16a556'
