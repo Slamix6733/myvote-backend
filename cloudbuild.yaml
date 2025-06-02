@@ -35,15 +35,28 @@ steps:
           echo "File contents:"
           cat deployments/sepolia.json
           echo ""
-          echo "Contract address: $(node -e "
+          CONTRACT_ADDRESS=$(node -e "
             try {
               const data = JSON.parse(require('fs').readFileSync('deployments/sepolia.json', 'utf8'));
-              console.log(data.contractAddress || 'Contract address not found');
+              console.log(data.contractAddress || '');
             } catch(e) {
-              console.log('Error parsing JSON:', e.message);
+              console.log('');
               process.exit(1);
             }
-          ")"
+          ")
+          echo "Contract address: $CONTRACT_ADDRESS"
+          
+          # Update app.yaml with the contract address
+          if [ ! -z "$CONTRACT_ADDRESS" ]; then
+            echo "Updating app.yaml with CONTRACT_ADDRESS..."
+            sed -i "/ENCRYPTION_KEY:/a\\  CONTRACT_ADDRESS: \"$CONTRACT_ADDRESS\"" app.yaml
+            echo "✓ app.yaml updated with CONTRACT_ADDRESS"
+            echo "Updated app.yaml env_variables section:"
+            grep -A 20 "env_variables:" app.yaml
+          else
+            echo "✗ Contract address is empty!"
+            exit 1
+          fi
         else
           echo "✗ deployments/sepolia.json not found!"
           echo "Creating deployments directory and checking if contract needs deployment..."
