@@ -47,7 +47,13 @@ steps:
         const router = express.Router();
         
         router.get('/', (req, res) => {
-          res.json({ success: true, message: 'Voters endpoint', data: [] });
+          res.json({ 
+            success: true, 
+            message: 'Voters endpoint', 
+            data: [],
+            count: 0,
+            timestamp: new Date().toISOString()
+          });
         });
         
         router.post('/register', (req, res) => {
@@ -90,8 +96,9 @@ steps:
         router.get('/contract', (req, res) => {
           res.json({ 
             success: true,
-            contractAddress: process.env.CONTRACT_ADDRESS,
-            network: 'sepolia'
+            contractAddress: process.env.CONTRACT_ADDRESS || null,
+            network: 'sepolia',
+            rpcUrl: process.env.SEPOLIA_RPC_URL ? 'Configured' : 'Not configured'
           });
         });
         
@@ -201,7 +208,7 @@ steps:
     waitFor: ['create-config', 'enable-apis']
 
 substitutions:
-  _CONTRACT_ADDRESS: '0x1234567890123456789012345678901234567890'
+  _CONTRACT_ADDRESS: ''
   _PRIVATE_KEY: ''
   _ADMIN_ADDRESS: ''
   _SEPOLIA_RPC_URL: ''
