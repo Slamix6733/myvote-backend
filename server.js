@@ -58,6 +58,8 @@ if (process.env.MONGODB_URI) {
 }
 
 // Import routes
+console.log('Starting route loading...');
+
 const routes = [
     { path: '/api/voters', file: './routes/voters', name: 'voters' },
     { path: '/api/upload', file: './routes/upload', name: 'upload' },
@@ -66,24 +68,32 @@ const routes = [
     { path: '/api/health', file: './routes/health', name: 'health' }
 ];
 
+let loadedRoutes = 0;
+
 routes.forEach(route => {
     try {
+        console.log(`Attempting to load ${route.name} from ${route.file}...`);
         const routeHandler = require(route.file);
         app.use(route.path, routeHandler);
         console.log(`✓ ${route.name} routes loaded successfully`);
+        loadedRoutes++;
     } catch (error) {
         console.error(`✗ Failed to load ${route.name} routes:`, error.message);
-        
-        // Create a fallback route that shows the error
+        console.error('Stack trace:', error.stack);
+
+        // Create a simple fallback route
         app.use(route.path, (req, res) => {
             res.status(500).json({
                 error: `${route.name} route failed to load`,
                 message: error.message,
+                details: error.stack,
                 timestamp: new Date().toISOString()
             });
         });
     }
 });
+
+console.log(`Route loading complete. ${loadedRoutes}/${routes.length} routes loaded successfully.`);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
