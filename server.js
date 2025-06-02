@@ -58,25 +58,32 @@ if (process.env.MONGODB_URI) {
 }
 
 // Import routes
-try {
-    const voterRoutes = require('./routes/voters');
-    const uploadRoutes = require('./routes/upload');
-    const blockchainRoutes = require('./routes/blockchain');
-    const adminRoutes = require('./routes/admin');
-    const healthRoutes = require('./routes/health');
+const routes = [
+    { path: '/api/voters', file: './routes/voters', name: 'voters' },
+    { path: '/api/upload', file: './routes/upload', name: 'upload' },
+    { path: '/api/blockchain', file: './routes/blockchain', name: 'blockchain' },
+    { path: '/api/admin', file: './routes/admin', name: 'admin' },
+    { path: '/api/health', file: './routes/health', name: 'health' }
+];
 
-    // Use routes
-    app.use('/api/voters', voterRoutes);
-    app.use('/api/upload', uploadRoutes);
-    app.use('/api/blockchain', blockchainRoutes);
-    app.use('/api/admin', adminRoutes);
-    app.use('/api/health', healthRoutes);
-
-    console.log('✓ All routes loaded successfully');
-} catch (error) {
-    console.error('Error loading routes:', error);
-    // Continue without crashing - routes might not exist yet
-}
+routes.forEach(route => {
+    try {
+        const routeHandler = require(route.file);
+        app.use(route.path, routeHandler);
+        console.log(`✓ ${route.name} routes loaded successfully`);
+    } catch (error) {
+        console.error(`✗ Failed to load ${route.name} routes:`, error.message);
+        
+        // Create a fallback route that shows the error
+        app.use(route.path, (req, res) => {
+            res.status(500).json({
+                error: `${route.name} route failed to load`,
+                message: error.message,
+                timestamp: new Date().toISOString()
+            });
+        });
+    }
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {

@@ -295,7 +295,6 @@ steps:
         hardhat.config.js
         artifacts/
         cache/
-        scripts/
         *.md
         .env
         .env.*
