@@ -21,8 +21,7 @@ contracts/
 hardhat.config.js
 artifacts/
 cache/
-deployments/*
-!deployments/sepolia.json
+
 
 # Build artifacts
 dist/
