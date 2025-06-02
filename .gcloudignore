@@ -16,11 +16,6 @@ node_modules/
 .vscode/
 
 # Testing, contracts, and hardhat related files
-test/
-contracts/
-hardhat.config.js
-artifacts/
-cache/
 
 
 # Build artifacts
