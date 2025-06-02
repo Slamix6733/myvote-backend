@@ -45,11 +45,6 @@ Thumbs.db
 README.md
 docs/
 
-# Hardhat files (if not needed in production)
-cache/
-artifacts/
-typechain-types/
-
 # Other
 *.log
 *.lock
