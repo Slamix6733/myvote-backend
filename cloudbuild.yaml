@@ -16,321 +16,130 @@ steps:
     args: ['services', 'enable', 'appengine.googleapis.com']
     waitFor: ['-']
 
-  # Create deployment files
+  # Prepare server.js
   - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'create-files'
+    id: 'prepare-server'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
-        echo "Creating deployment files..."
-        
-        # Check if server.js exists
+        echo "Preparing server.js..."
         if [ -f "server.js" ]; then
           echo "✓ Found existing server.js file"
-          echo "First few lines of existing server.js:"
-          head -10 server.js
-          
-          # Update PORT for App Engine - fix the sed pattern to match the actual line
-          sed -i 's/const PORT = process.env.PORT || 5000; \/\/ Changed from 5000 to 8080 for App Engine/const PORT = process.env.PORT || 8080; \/\/ Changed for App Engine compatibility/g' server.js
           sed -i 's/const PORT = process.env.PORT || 5000;/const PORT = process.env.PORT || 8080;/g' server.js
-          echo "✓ Updated PORT to 8080 for App Engine"
-          
-          # Ensure the server binds to 0.0.0.0 for App Engine
-          sed -i "s/app.listen(PORT, '0.0.0.0'/app.listen(PORT, '0.0.0.0'/g" server.js
           sed -i "s/app.listen(PORT, () => {/app.listen(PORT, '0.0.0.0', () => {/g" server.js
-          echo "✓ Updated server binding for App Engine"
-          
-          # Ensure routes directory exists and create basic route files if missing
-          mkdir -p routes
-          
-          # Create basic voters route if missing
-          if [ ! -f "routes/voters.js" ]; then
-            echo "Creating routes/voters.js..."
-            cat > routes/voters.js << 'ROUTEEOF'
+          echo "✓ Updated server.js for App Engine"
+        fi
+        mkdir -p routes uploads public
+
+  # Create route files
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'create-routes'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Creating route files..."
+        
+        # Create voters route
+        cat > routes/voters.js << 'EOF'
         const express = require('express');
         const router = express.Router();
         
-        // Get all voters
         router.get('/', (req, res) => {
-          res.json({ 
-            success: true, 
-            message: 'Voters endpoint - GET /api/voters', 
-            data: [],
-            timestamp: new Date().toISOString()
-          });
+          res.json({ success: true, message: 'Voters endpoint', data: [] });
         });
         
-        // Register voter
         router.post('/register', (req, res) => {
-          console.log('Voter registration request:', req.body);
-          res.json({ 
-            success: true, 
-            message: 'Voter registration endpoint - POST /api/voters/register', 
-            data: req.body,
-            timestamp: new Date().toISOString()
-          });
+          res.json({ success: true, message: 'Voter registration', data: req.body });
         });
         
-        // Verify voter
         router.post('/verify', (req, res) => {
-          console.log('Voter verification request:', req.body);
-          res.json({ 
-            success: true, 
-            message: 'Voter verification endpoint - POST /api/voters/verify', 
-            data: req.body,
-            timestamp: new Date().toISOString()
-          });
+          res.json({ success: true, message: 'Voter verification', data: req.body });
         });
         
         module.exports = router;
-        ROUTEEOF
-          fi
-          
-          # Create basic upload route if missing
-          if [ ! -f "routes/upload.js" ]; then
-            echo "Creating routes/upload.js..."
-            cat > routes/upload.js << 'ROUTEEOF'
+        EOF
+        
+        # Create upload route
+        cat > routes/upload.js << 'EOF'
         const express = require('express');
         const multer = require('multer');
         const router = express.Router();
-        
-        const storage = multer.diskStorage({
-          destination: function (req, file, cb) {
-            cb(null, 'uploads/')
-          },
-          filename: function (req, file, cb) {
-            cb(null, Date.now() + '-' + file.originalname)
-          }
-        });
-        
-        const upload = multer({ 
-          storage: storage,
-          limits: { fileSize: 10 * 1024 * 1024 }
-        });
+        const upload = multer({ dest: 'uploads/' });
         
         router.post('/', upload.single('file'), (req, res) => {
-          try {
-            console.log('File upload request:', req.file);
-            res.json({ 
-              success: true, 
-              message: 'File upload endpoint - POST /api/upload',
-              file: req.file ? {
-                filename: req.file.filename,
-                originalname: req.file.originalname,
-                size: req.file.size,
-                path: req.file.path
-              } : null,
-              timestamp: new Date().toISOString()
-            });
-          } catch (error) {
-            console.error('Upload error:', error);
-            res.status(500).json({
-              success: false,
-              message: 'Upload failed',
-              error: error.message
-            });
-          }
+          res.json({ success: true, message: 'File upload', file: req.file });
         });
         
         module.exports = router;
-        ROUTEEOF
-          fi
-          
-          # Create basic blockchain route if missing
-          if [ ! -f "routes/blockchain.js" ]; then
-            echo "Creating routes/blockchain.js..."
-            cat > routes/blockchain.js << 'ROUTEEOF'
+        EOF
+
+  # Create blockchain and admin routes
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'create-more-routes'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        # Create blockchain route
+        cat > routes/blockchain.js << 'EOF'
         const express = require('express');
         const router = express.Router();
         
         router.get('/contract', (req, res) => {
-          console.log('Contract info request');
           res.json({ 
             success: true,
-            message: 'Contract info endpoint - GET /api/blockchain/contract',
-            contractAddress: process.env.CONTRACT_ADDRESS || 'Not configured',
-            network: 'sepolia',
-            rpcUrl: process.env.SEPOLIA_RPC_URL ? 'Configured' : 'Not configured',
-            timestamp: new Date().toISOString()
+            contractAddress: process.env.CONTRACT_ADDRESS,
+            network: 'sepolia'
           });
         });
         
         router.post('/vote', (req, res) => {
-          console.log('Vote submission request:', req.body);
-          res.json({ 
-            success: true, 
-            message: 'Vote submission endpoint - POST /api/blockchain/vote', 
-            data: req.body,
-            timestamp: new Date().toISOString()
-          });
+          res.json({ success: true, message: 'Vote submission', data: req.body });
         });
         
         router.get('/results/:electionId', (req, res) => {
-          console.log('Results request for election:', req.params.electionId);
-          res.json({ 
-            success: true,
-            message: 'Election results endpoint - GET /api/blockchain/results/:electionId',
-            electionId: req.params.electionId,
-            results: [],
-            timestamp: new Date().toISOString()
-          });
+          res.json({ success: true, electionId: req.params.electionId, results: [] });
         });
         
         module.exports = router;
-        ROUTEEOF
-          fi
-          
-          # Create basic admin route if missing
-          if [ ! -f "routes/admin.js" ]; then
-            echo "Creating routes/admin.js..."
-            cat > routes/admin.js << 'ROUTEEOF'
+        EOF
+        
+        # Create admin route
+        cat > routes/admin.js << 'EOF'
         const express = require('express');
         const router = express.Router();
         
         router.get('/dashboard', (req, res) => {
-          console.log('Admin dashboard request');
-          res.json({ 
-            success: true, 
-            message: 'Admin dashboard endpoint - GET /api/admin/dashboard',
-            timestamp: new Date().toISOString()
-          });
+          res.json({ success: true, message: 'Admin dashboard' });
         });
         
         router.post('/elections', (req, res) => {
-          console.log('Create election request:', req.body);
-          res.json({ 
-            success: true, 
-            message: 'Create election endpoint - POST /api/admin/elections', 
-            data: req.body,
-            timestamp: new Date().toISOString()
-          });
+          res.json({ success: true, message: 'Create election', data: req.body });
         });
         
         router.get('/elections', (req, res) => {
-          console.log('Get elections request');
-          res.json({ 
-            success: true,
-            message: 'Get elections endpoint - GET /api/admin/elections',
-            elections: [],
-            timestamp: new Date().toISOString()
-          });
+          res.json({ success: true, elections: [] });
         });
         
         module.exports = router;
-        ROUTEEOF
-          fi
-          
-          echo "✓ All route files created/verified"
-          echo "✓ Server.js configured for App Engine"
-          
-        else
-          echo "Creating server.js..."
-          cat > server.js << 'EOF'
-        const express = require('express');
-        const cors = require('cors');
-        const path = require('path');
-        const mongoose = require('mongoose');
-        require('dotenv').config();
-        
-        const app = express();
-        const PORT = process.env.PORT || 8080;
-        
-        // Middleware
-        app.use(cors());
-        app.use(express.json({ limit: '10mb' }));
-        app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-        
-        // Serve static files from uploads directory
-        app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-        
-        // Health check endpoint
-        app.get('/health', (req, res) => {
-            res.status(200).json({
-                status: 'OK',
-                service: 'myvote-backend',
-                timestamp: new Date().toISOString(),
-                version: '1.0.0'
-            });
-        });
-        
-        // API health check
-        app.get('/api/health', (req, res) => {
-            res.status(200).json({
-                status: 'OK',
-                service: 'myvote-api',
-                timestamp: new Date().toISOString()
-            });
-        });
-        
-        // Database connection
-        if (process.env.MONGODB_URI) {
-            mongoose.connect(process.env.MONGODB_URI, {
-                useNewUrlParser: true,
-                useUnifiedTopology: true,
-            }).then(() => {
-                console.log('Connected to MongoDB successfully');
-            }).catch((error) => {
-                console.error('MongoDB connection error:', error);
-            });
-        }
-        
-        // Import and use routes
-        try {
-            const voterRoutes = require('./routes/voters');
-            const uploadRoutes = require('./routes/upload');
-            const blockchainRoutes = require('./routes/blockchain');
-            const adminRoutes = require('./routes/admin');
-        
-            app.use('/api/voters', voterRoutes);
-            app.use('/api/upload', uploadRoutes);
-            app.use('/api/blockchain', blockchainRoutes);
-            app.use('/api/admin', adminRoutes);
-        } catch (error) {
-            console.error('Error loading routes:', error);
-        }
-        
-        // Error handling middleware
-        app.use((err, req, res, next) => {
-            console.error('Error:', err);
-            res.status(500).json({
-                error: 'Internal server error',
-                message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
-            });
-        });
-        
-        // 404 handler
-        app.use('*', (req, res) => {
-            res.status(404).json({ error: 'Route not found' });
-        });
-        
-        // Start server
-        app.listen(PORT, '0.0.0.0', () => {
-            console.log('Server running on port ' + PORT);
-            console.log('Health check available at: http://localhost:' + PORT + '/health');
-        });
-        
-        module.exports = app;
         EOF
-        
-          # Create routes directory and files
-          mkdir -p routes
-          
-          # Create route files (same content as above)
-          # ... (route creation code would be repeated here)
-        fi
-        
-        # Create clean package.json for deployment (no hardhat deps)
-        echo "Creating deployment package.json without hardhat dependencies..."
+
+  # Create deployment files
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'create-config'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        # Create package.json
         cat > package.json << 'EOF'
         {
           "name": "myvote-backend",
           "version": "1.0.0",
-          "description": "MyVote Backend API",
           "main": "server.js",
-          "scripts": {
-            "start": "node server.js"
-          },
+          "scripts": { "start": "node server.js" },
           "dependencies": {
             "express": "^4.18.2",
             "cors": "^2.8.5",
@@ -339,59 +148,33 @@ steps:
             "multer": "^1.4.5-lts.1",
             "ethers": "^6.0.0"
           },
-          "engines": {
-            "node": "20.x",
-            "npm": "10.x"
-          }
+          "engines": { "node": "20.x", "npm": "10.x" }
         }
         EOF
         
         # Create app.yaml
-        echo "Creating app.yaml..."
         cat > app.yaml << 'EOF'
         runtime: nodejs20
-        env: standard
-        
         env_variables:
           NODE_ENV: 'production'
-          PORT: '8080'
           CONTRACT_ADDRESS: "${_CONTRACT_ADDRESS}"
           SEPOLIA_RPC_URL: "${_SEPOLIA_RPC_URL}"
           ADMIN_ADDRESS: "${_ADMIN_ADDRESS}"
           MONGODB_URI: "${_MONGODB_URI}"
           ENCRYPTION_KEY: "${_ENCRYPTION_KEY}"
-        
         automatic_scaling:
           min_instances: 1
           max_instances: 5
-          max_concurrent_requests: 80
-        
-        instance_class: F2
-        
         readiness_check:
           path: "/health"
-          check_interval_sec: 5
-          timeout_sec: 4
-          failure_threshold: 2
-          success_threshold: 2
-          app_start_timeout_sec: 300
-        
         liveness_check:
           path: "/health"
-          check_interval_sec: 30
-          timeout_sec: 4
-          failure_threshold: 2
-          success_threshold: 2
-        
-        network:
-          session_affinity: false
         EOF
         
-        # Create .gcloudignore to exclude development files
+        # Create .gcloudignore
         cat > .gcloudignore << 'EOF'
         .git
         .github
-        .gitignore
         .vscode/
         test/
         contracts/
@@ -400,75 +183,22 @@ steps:
         cache/
         scripts/
         *.md
-        .env
-        .env.*
-        Dockerfile
-        .dockerignore
+        .env*
         node_modules/.cache/
-        npm-debug.log*
-        yarn-debug.log*
-        yarn-error.log*
-        # Exclude hardhat development files
-        @nomiclabs/
-        @nomicfoundation/
-        @typechain/
-        typechain/
-        hardhat/
         EOF
-        
-        # Remove package-lock.json to avoid conflicts
-        rm -f package-lock.json
-        
-        # Ensure required directories exist
-        mkdir -p uploads
-        mkdir -p public
-        
-        echo "Files prepared successfully"
-        ls -la
-    waitFor: ['install-deps']
+    waitFor: ['prepare-server', 'create-routes', 'create-more-routes']
 
-  # Deploy to App Engine  
+  # Deploy to App Engine
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'deploy'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
-        echo "Starting deployment..."
-        
-        # Verify required files
-        for file in server.js package.json app.yaml; do
-          if [ ! -f "$file" ]; then
-            echo "ERROR: Missing $file"
-            exit 1
-          else
-            echo "✓ Found: $file"
-          fi
-        done
-        
-        # Check dependencies
-        if [ ! -d "node_modules" ]; then
-          echo "Installing dependencies..."
-          npm install --production
-        fi
-        
-        # Deploy
-        if gcloud app describe &>/dev/null; then
-          echo "Deploying to App Engine..."
-          gcloud app deploy --quiet --verbosity=info
-          
-          if [ $? -eq 0 ]; then
-            echo "Deployment completed successfully!"
-            gcloud app browse --no-launch-browser
-          else
-            echo "Deployment failed!"
-            exit 1
-          fi
-        else
-          echo "App Engine application does not exist."
-          echo "Create it at: https://console.cloud.google.com/appengine"
-        fi
-    waitFor: ['create-files', 'enable-apis']
+        echo "Deploying to App Engine..."
+        rm -f package-lock.json
+        gcloud app deploy --quiet --verbosity=info
+    waitFor: ['create-config', 'enable-apis']
 
 substitutions:
   _CONTRACT_ADDRESS: '0x1234567890123456789012345678901234567890'
