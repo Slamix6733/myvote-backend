@@ -133,6 +133,25 @@ steps:
         module.exports = router;
         EOF
 
+  # Extract contract address from deployment
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'extract-contract'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Extracting contract address from deployments/sepolia.json..."
+        if [ -f "deployments/sepolia.json" ]; then
+          CONTRACT_ADDR=$(cat deployments/sepolia.json | grep -o '"address"[[:space:]]*:[[:space:]]*"[^"]*"' | grep -o '"[^"]*"$' | tr -d '"')
+          echo "Found contract address: $CONTRACT_ADDR"
+          echo "CONTRACT_ADDRESS=$CONTRACT_ADDR" > contract.env
+          echo "✓ Contract address extracted successfully"
+        else
+          echo "⚠️  deployments/sepolia.json not found, using empty contract address"
+          echo "CONTRACT_ADDRESS=" > contract.env
+        fi
+    waitFor: ['prepare-server']
+
   # Create deployment files
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'create-config'
@@ -140,6 +159,14 @@ steps:
     args:
       - '-c'
       - |
+        # Read contract address from extracted file
+        if [ -f "contract.env" ]; then
+          source contract.env
+          echo "Using contract address: $CONTRACT_ADDRESS"
+        else
+          CONTRACT_ADDRESS=""
+        fi
+        
         # Create package.json
         cat > package.json << 'EOF'
         {
@@ -159,16 +186,17 @@ steps:
         }
         EOF
         
-        # Create app.yaml
-        cat > app.yaml << 'EOF'
+        # Create app.yaml with dynamic contract address
+        cat > app.yaml << EOF
         runtime: nodejs20
         env_variables:
           NODE_ENV: 'production'
-          CONTRACT_ADDRESS: "${_CONTRACT_ADDRESS}"
-          SEPOLIA_RPC_URL: "${_SEPOLIA_RPC_URL}"
-          ADMIN_ADDRESS: "${_ADMIN_ADDRESS}"
-          MONGODB_URI: "${_MONGODB_URI}"
-          ENCRYPTION_KEY: "${_ENCRYPTION_KEY}"
+          CONTRACT_ADDRESS: '${CONTRACT_ADDRESS}'
+          SEPOLIA_RPC_URL: '${_SEPOLIA_RPC_URL}'
+          ADMIN_ADDRESS: '${_ADMIN_ADDRESS}'
+          MONGODB_URI: '${_MONGODB_URI}'
+          ENCRYPTION_KEY: '${_ENCRYPTION_KEY}'
+          PRIVATE_KEY: '${_PRIVATE_KEY}'
         automatic_scaling:
           min_instances: 1
           max_instances: 5
@@ -193,7 +221,9 @@ steps:
         .env*
         node_modules/.cache/
         EOF
-    waitFor: ['prepare-server', 'create-routes', 'create-more-routes']
+        
+        echo "✓ Configuration files created with contract address: $CONTRACT_ADDRESS"
+    waitFor: ['extract-contract', 'create-routes', 'create-more-routes']
 
   # Deploy to App Engine
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -208,7 +238,6 @@ steps:
     waitFor: ['create-config', 'enable-apis']
 
 substitutions:
-  _CONTRACT_ADDRESS: ''
   _PRIVATE_KEY: '0xc9fc1cb318be162465ee2e222b94432bbbde124d161a4b058ea74f3ecd16a556'
   _ADMIN_ADDRESS: '0x9a77A46f27ee0663fe44BC3b51dBba37092Cf9c0'
   _SEPOLIA_RPC_URL: 'https://eth-sepolia.g.alchemy.com/v2/tCH4tNrSzoTvWI3mDLhDtEe0sGW-_Koe'
