@@ -142,7 +142,7 @@ steps:
       - |
         echo "Extracting contract address from deployments/sepolia.json..."
         if [ -f "deployments/sepolia.json" ]; then
-          CONTRACT_ADDR=$$(cat deployments/sepolia.json | grep -o '"address"[[:space:]]*:[[:space:]]*"[^"]*"' | grep -o '"[^"]*"$$' | tr -d '"')
+          CONTRACT_ADDR=$$(cat deployments/sepolia.json | grep -o '"contractAddress"[[:space:]]*:[[:space:]]*"[^"]*"' | grep -o '"[^"]*"$$' | tr -d '"')
           echo "Found contract address: $$CONTRACT_ADDR"
           echo "CONTRACT_ADDRESS=$$CONTRACT_ADDR" > contract.env
           echo "✓ Contract address extracted successfully"
