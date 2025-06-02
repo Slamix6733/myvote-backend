@@ -1,8 +1,8 @@
 steps:
-  # Install dependencies
+  # Install dependencies with legacy peer deps to resolve ethers version conflict
   - name: 'node:18'
     entrypoint: 'npm'
-    args: ['install']
+    args: ['install', '--legacy-peer-deps']
     
   # Run tests (optional - uncomment if you have tests)
   # - name: 'node:18'

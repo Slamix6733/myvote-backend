@@ -86,6 +86,15 @@ Dockerfile*
 docker-compose*
 .dockerignore
 
+# Hardhat development files (causing dependency conflicts)
+hardhat.config.js
+hardhat/
+contracts/
+scripts/deploy.js
+scripts/testMongo.js
+cache/
+artifacts/
+
 # Development and testing
 test/
 tests/
