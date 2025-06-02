@@ -1,52 +1,57 @@
 const express = require('express');
 const router = express.Router();
-const { 
-  getDashboardStats, 
-  getAllVoters, 
-  getAdminLogs, 
+const adminAuth = require('../middleware/adminAuth');
+const {
+  getDashboardStats,
+  getAllVoters,
+  getAdminLogs,
   getVoterByAddress,
   getHistoricalStats,
   getStateDistribution
 } = require('../controllers/adminController');
 
-// Middleware to check if the request comes from an admin
-const isAdmin = async (req, res, next) => {
-  try {
-    const adminAddress = process.env.ADMIN_ADDRESS;
-    if (!adminAddress) {
-      return res.status(500).json({ error: "Admin address not configured" });
-    }
-    
-    const providedAdmin = req.headers['x-admin-address'] || req.query.adminAddress;
-    
-    // Check if the sender address matches the admin address
-    if (providedAdmin && providedAdmin.toLowerCase() === adminAddress.toLowerCase()) {
-      next();
-    } else {
-      return res.status(403).json({ error: "Unauthorized access" });
-    }
-  } catch (error) {
-    console.error("Admin check error:", error);
-    return res.status(500).json({ error: "Internal server error" });
-  }
-};
+// Apply admin authentication to all routes
+router.use(adminAuth);
 
 // Dashboard statistics
-router.get('/stats', isAdmin, getDashboardStats);
+router.get('/stats', async (req, res) => {
+  try {
+    const stats = await getDashboardStats();
+
+    res.json({
+      totalVoters: stats.totalVoters || 0,
+      verifiedVoters: stats.verifiedVoters || 0,
+      pendingVerification: stats.pendingVerification || 0,
+      // ...existing response data...
+    });
+
+  } catch (error) {
+    console.error('Error fetching admin stats:', error);
+    res.status(500).json({
+      error: 'Failed to fetch statistics',
+      details: error.message
+    });
+  }
+});
+
+// Add health check endpoint
+router.get('/health', (req, res) => {
+  res.status(200).json({ status: 'OK', service: 'admin' });
+});
 
 // Get all voters with pagination
-router.get('/voters', isAdmin, getAllVoters);
+router.get('/voters', getAllVoters);
 
 // Get specific voter by address
-router.get('/voters/:address', isAdmin, getVoterByAddress);
+router.get('/voters/:address', getVoterByAddress);
 
 // Get admin activity logs
-router.get('/logs', isAdmin, getAdminLogs);
+router.get('/logs', getAdminLogs);
 
 // Get historical statistics
-router.get('/stats/historical', isAdmin, getHistoricalStats);
+router.get('/stats/historical', getHistoricalStats);
 
 // Get state-wise distribution
-router.get('/stats/states', isAdmin, getStateDistribution);
+router.get('/stats/states', getStateDistribution);
 
-module.exports = router; 
+module.exports = router;

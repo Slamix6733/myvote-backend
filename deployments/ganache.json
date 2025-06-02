@@ -1,6 +1,6 @@
 {
   "network": "ganache",
-  "contractAddress": "0xf78E8AFA1E43D7c834beb47192417e318dbcAef9",
-  "deploymentTime": "2025-04-04T21:06:39.525Z",
-  "deployer": "0x6E5ceE75158A189939F6d945351dBD86370672AD"
+  "contractAddress": "0x0fbA56279dcFacc3546ed35da4815b4D513B7962",
+  "deploymentTime": "2025-05-18T11:08:50.208Z",
+  "deployer": "0x8b11e8719faBa507D2FC5402Eb736cF33a04581F"
 }

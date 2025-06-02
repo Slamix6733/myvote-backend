@@ -1,39 +1,52 @@
 {
   "name": "myvote-backend",
   "version": "1.0.0",
-  "main": "index.js",
+  "description": "Blockchain-based voting system backend",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.js",
-    "dev": "nodemon index.js",
+    "start": "node server.js",
+    "dev": "node server.js",
     "compile": "npx hardhat compile",
-    "deploy:local": "npx hardhat run scripts/deploy.js --network localhost",
     "deploy:sepolia": "npx hardhat run scripts/deploy.js --network sepolia",
     "deploy:mumbai": "npx hardhat run scripts/deploy.js --network mumbai",
-    "node": "npx hardhat node"
+    "test": "npx hardhat test"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "mongoose": "^7.0.3",
+    "multer": "^1.4.5-lts.1",
+    "ethers": "^6.0.0",
+    "hardhat": "^2.14.0",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
+    "@nomicfoundation/hardhat-ethers": "^3.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.0",
+    "@nomicfoundation/hardhat-ignition-ethers": "^0.15.0",
+    "@typechain/ethers-v6": "^0.5.0",
+    "@typechain/hardhat": "^9.0.0",
+    "@types/chai": "^4.2.0",
+    "@types/mocha": ">=9.1.0",
+    "chai": "^4.2.0",
+    "hardhat-gas-reporter": "^1.0.8",
+    "solidity-coverage": "^0.8.1",
+    "typechain": "^8.2.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
   },
   "keywords": [
     "blockchain",
+    "voting",
     "ethereum",
-    "voter-id",
-    "identity",
-    "verification"
+    "smart-contracts"
   ],
-  "author": "",
-  "license": "ISC",
-  "description": "A blockchain-based voter identification system",
-  "dependencies": {
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.7",
-    "ethers": "^6.13.5",
-    "express": "^4.21.2",
-    "mongoose": "^8.13.1",
-    "multer": "^1.4.5-lts.2"
-  },
-  "devDependencies": {
-    "@nomicfoundation/hardhat-ethers": "^3.0.8",
-    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
-    "hardhat": "^2.22.19",
-    "nodemon": "^3.1.9"
+  "author": "Your Name",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
   }
 }

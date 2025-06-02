@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { 
-  registerVoter, 
-  verifyVoter, 
-  checkVoterStatus, 
+const {
+  registerVoter,
+  verifyVoter,
+  checkVoterStatus,
   getVoterDetails,
   getVoterByAdmin
 } = require('../controllers/voterController');
@@ -15,9 +15,9 @@ const isAdmin = async (req, res, next) => {
     if (!adminAddress) {
       return res.status(500).json({ error: "Admin address not configured" });
     }
-    
-    const providedAdmin = req.headers['x-admin-address'] || req.query.adminAddress;
-    
+
+    const providedAdmin = req.headers['x-admin-address'] || req.query.adminAddress || req.body.adminAddress;
+
     // Check if the sender address matches the admin address
     if (providedAdmin && providedAdmin.toLowerCase() === adminAddress.toLowerCase()) {
       next();
@@ -45,4 +45,4 @@ router.get('/details/:address', getVoterDetails);
 // Admin access to voter details with decrypted data
 router.get('/admin/:address', isAdmin, getVoterByAdmin);
 
-module.exports = router; 
+module.exports = router;

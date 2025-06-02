@@ -31,88 +31,90 @@ const getDashboardStats = async (req, res) => {
     // Get today's date (start of day)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     // Get yesterday's date
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    
+
     // Get last 7 days
     const last7Days = new Date(today);
     last7Days.setDate(last7Days.getDate() - 7);
-    
+
     // Get last 30 days
     const last30Days = new Date(today);
     last30Days.setDate(last30Days.getDate() - 30);
-    
+
     // Get counts
     const totalVoters = await Voter.countDocuments();
     const verifiedVoters = await Voter.countDocuments({ isVerified: true });
     const pendingVerification = await Voter.countDocuments({ isVerified: false });
-    
+
     // Get today's registrations
     const todayRegistrations = await Voter.countDocuments({
       registrationDate: { $gte: today }
     });
-    
+
     // Get today's verifications
     const todayVerifications = await Voter.countDocuments({
       verificationDate: { $gte: today }
     });
-    
+
     // Get gender distribution
     const maleVoters = await Voter.countDocuments({ gender: 'Male' });
     const femaleVoters = await Voter.countDocuments({ gender: 'Female' });
-    const otherGenderVoters = await Voter.countDocuments({ 
+    const otherGenderVoters = await Voter.countDocuments({
       gender: { $nin: ['Male', 'Female'] }
     });
-    
+
     // Get registration trends (last 7 days)
     const last7DaysRegistrations = await Voter.aggregate([
-      { 
-        $match: { 
-          registrationDate: { $gte: last7Days } 
-        } 
+      {
+        $match: {
+          registrationDate: { $gte: last7Days }
+        }
       },
       {
         $group: {
-          _id: { 
-            $dateToString: { format: "%Y-%m-%d", date: "$registrationDate" } 
+          _id: {
+            $dateToString: { format: "%Y-%m-%d", date: "$registrationDate" }
           },
           count: { $sum: 1 }
         }
       },
       { $sort: { _id: 1 } }
     ]);
-    
+
     // Get verification trends (last 7 days)
     const last7DaysVerifications = await Voter.aggregate([
-      { 
-        $match: { 
-          verificationDate: { $gte: last7Days, $ne: null } 
-        } 
+      {
+        $match: {
+          verificationDate: { $gte: last7Days, $ne: null }
+        }
       },
       {
         $group: {
-          _id: { 
-            $dateToString: { format: "%Y-%m-%d", date: "$verificationDate" } 
+          _id: {
+            $dateToString: { format: "%Y-%m-%d", date: "$verificationDate" }
           },
           count: { $sum: 1 }
         }
       },
       { $sort: { _id: 1 } }
     ]);
-    
+
     // Get state distribution
     const stateDistribution = await Voter.aggregate([
-      { 
+      {
         $project: {
           // Use coalesce to replace null/empty state with "Unknown"
-          state: { 
+          state: {
             $cond: [
-              { $or: [
-                { $eq: ["$state", null] },
-                { $eq: ["$state", ""] }
-              ]},
+              {
+                $or: [
+                  { $eq: ["$state", null] },
+                  { $eq: ["$state", ""] }
+                ]
+              },
               "Unknown",
               "$state"
             ]
@@ -124,26 +126,26 @@ const getDashboardStats = async (req, res) => {
         $group: {
           _id: "$state",
           total: { $sum: 1 },
-          verified: { 
-            $sum: { 
-              $cond: [{ $eq: ["$isVerified", true] }, 1, 0] 
-            } 
+          verified: {
+            $sum: {
+              $cond: [{ $eq: ["$isVerified", true] }, 1, 0]
+            }
           },
-          unverified: { 
-            $sum: { 
-              $cond: [{ $eq: ["$isVerified", false] }, 1, 0] 
-            } 
+          unverified: {
+            $sum: {
+              $cond: [{ $eq: ["$isVerified", false] }, 1, 0]
+            }
           }
         }
       },
       { $sort: { total: -1 } }
     ]);
-    
+
     // Get admin activity (recent 10)
     const recentAdminActivity = await AdminLog.find()
       .sort({ timestamp: -1 })
       .limit(10);
-    
+
     // Calculate age distribution
     const voters = await Voter.find({}, { dob: 1 });
     const ageDistribution = {
@@ -154,7 +156,7 @@ const getDashboardStats = async (req, res) => {
       age46to60: 0,
       above60: 0
     };
-    
+
     voters.forEach(voter => {
       if (voter.dob) {
         const age = getAge(voter.dob);
@@ -162,15 +164,15 @@ const getDashboardStats = async (req, res) => {
         ageDistribution[category]++;
       }
     });
-    
+
     // Save system stats for today
-    let systemStats = await SystemStats.findOne({ 
-      date: { 
-        $gte: today, 
-        $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000) 
-      } 
+    let systemStats = await SystemStats.findOne({
+      date: {
+        $gte: today,
+        $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000)
+      }
     });
-    
+
     if (!systemStats) {
       systemStats = new SystemStats({
         date: today,
@@ -184,24 +186,24 @@ const getDashboardStats = async (req, res) => {
         otherGenderVoters,
         ageDistribution
       });
-      
+
       // Convert state distribution to Map for this specific case
       const stateWiseDistribution = new Map();
       stateDistribution.forEach(item => {
         // Skip null keys or convert them to a string
         const stateKey = (item._id !== null && item._id !== undefined) ? item._id : "Unknown";
-        
+
         // Handle the count value - some aggregations return count, others return total
-        const count = item.count !== undefined ? item.count : 
-                      (item.total !== undefined ? item.total : 0);
-        
+        const count = item.count !== undefined ? item.count :
+          (item.total !== undefined ? item.total : 0);
+
         stateWiseDistribution.set(stateKey, count);
       });
-      
+
       systemStats.stateWiseDistribution = stateWiseDistribution;
       await systemStats.save();
     }
-    
+
     res.json({
       totalVoters,
       verifiedVoters,
@@ -232,14 +234,14 @@ const getAllVoters = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
-    
+
     // Filters
     const filter = {};
-    
+
     if (req.query.isVerified) {
       filter.isVerified = req.query.isVerified === 'true';
     }
-    
+
     if (req.query.search) {
       const search = req.query.search;
       filter.$or = [
@@ -249,20 +251,20 @@ const getAllVoters = async (req, res) => {
         { voterIdHash: { $regex: search, $options: 'i' } }
       ];
     }
-    
+
     if (req.query.state) {
       filter.state = req.query.state;
     }
-    
+
     // Get total count for pagination
     const total = await Voter.countDocuments(filter);
-    
+
     // Get voters
     const voters = await Voter.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
-    
+
     res.json({
       voters,
       pagination: {
@@ -283,38 +285,38 @@ const getAdminLogs = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
-    
+
     // Filters
     const filter = {};
-    
+
     if (req.query.adminAddress) {
       filter.adminAddress = req.query.adminAddress;
     }
-    
+
     if (req.query.action) {
       filter.action = req.query.action;
     }
-    
+
     if (req.query.status) {
       filter.status = req.query.status;
     }
-    
+
     if (req.query.fromDate && req.query.toDate) {
       filter.timestamp = {
         $gte: new Date(req.query.fromDate),
         $lte: new Date(req.query.toDate)
       };
     }
-    
+
     // Get total count for pagination
     const total = await AdminLog.countDocuments(filter);
-    
+
     // Get logs
     const logs = await AdminLog.find(filter)
       .sort({ timestamp: -1 })
       .skip(skip)
       .limit(limit);
-    
+
     res.json({
       logs,
       pagination: {
@@ -333,19 +335,19 @@ const getAdminLogs = async (req, res) => {
 const getVoterByAddress = async (req, res) => {
   try {
     const { address } = req.params;
-    
+
     // Validate address format
     if (!address || !ethers.isAddress(address)) {
       return res.status(400).json({ error: "Invalid Ethereum address" });
     }
-    
+
     // Find voter in MongoDB
     const voter = await Voter.findOne({ blockchainAddress: address });
-    
+
     if (!voter) {
       return res.status(404).json({ error: "Voter not found" });
     }
-    
+
     res.json({ voter });
   } catch (error) {
     console.error('Error getting voter details:', error);
@@ -366,7 +368,7 @@ const logAdminActivity = async (adminAddress, action, description, targetAddress
       metadata,
       ipAddress
     });
-    
+
     await log.save();
     return log;
   } catch (error) {
@@ -375,21 +377,43 @@ const logAdminActivity = async (adminAddress, action, description, targetAddress
   }
 };
 
+// Health check function
+const getHealthStatus = async (req, res) => {
+  try {
+    // Check database connectivity
+    const voterCount = await Voter.countDocuments();
+    res.status(200).json({
+      status: 'OK',
+      service: 'admin',
+      database: 'connected',
+      totalVoters: voterCount,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'Error',
+      service: 'admin',
+      database: 'disconnected',
+      error: error.message
+    });
+  }
+};
+
 // Get historical stats (time series data)
 const getHistoricalStats = async (req, res) => {
   try {
     const { days = 30 } = req.query;
-    
+
     // Get start date
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - parseInt(days));
     startDate.setHours(0, 0, 0, 0);
-    
+
     // Get stats
     const stats = await SystemStats.find({
       date: { $gte: startDate }
     }).sort({ date: 1 });
-    
+
     res.json({ stats });
   } catch (error) {
     console.error('Error getting historical stats:', error);
@@ -401,15 +425,17 @@ const getHistoricalStats = async (req, res) => {
 const getStateDistribution = async (req, res) => {
   try {
     const stateDistribution = await Voter.aggregate([
-      { 
+      {
         $project: {
           // Use coalesce to replace null/empty state with "Unknown"
-          state: { 
+          state: {
             $cond: [
-              { $or: [
-                { $eq: ["$state", null] },
-                { $eq: ["$state", ""] }
-              ]},
+              {
+                $or: [
+                  { $eq: ["$state", null] },
+                  { $eq: ["$state", ""] }
+                ]
+              },
               "Unknown",
               "$state"
             ]
@@ -421,21 +447,21 @@ const getStateDistribution = async (req, res) => {
         $group: {
           _id: "$state",
           total: { $sum: 1 },
-          verified: { 
-            $sum: { 
-              $cond: [{ $eq: ["$isVerified", true] }, 1, 0] 
-            } 
+          verified: {
+            $sum: {
+              $cond: [{ $eq: ["$isVerified", true] }, 1, 0]
+            }
           },
-          unverified: { 
-            $sum: { 
-              $cond: [{ $eq: ["$isVerified", false] }, 1, 0] 
-            } 
+          unverified: {
+            $sum: {
+              $cond: [{ $eq: ["$isVerified", false] }, 1, 0]
+            }
           }
         }
       },
       { $sort: { total: -1 } }
     ]);
-    
+
     res.json({ stateDistribution });
   } catch (error) {
     console.error('Error getting state distribution:', error);
@@ -450,5 +476,6 @@ module.exports = {
   getVoterByAddress,
   logAdminActivity,
   getHistoricalStats,
-  getStateDistribution
-}; 
+  getStateDistribution,
+  getHealthStatus
+};
