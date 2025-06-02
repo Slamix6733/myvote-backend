@@ -259,8 +259,7 @@ steps:
             "dotenv": "^16.0.3",
             "mongoose": "^7.0.3",
             "multer": "^1.4.5-lts.1",
-            "ethers": "^6.0.0",
-            "crypto": "^1.0.1"
+            "ethers": "^6.0.0"
           },
           "engines": { "node": "20.x", "npm": "10.x" }
         }
@@ -286,7 +285,7 @@ steps:
           path: "/health"
         EOF
         
-        # Create .gcloudignore
+        # Create .gcloudignore - only exclude unnecessary files
         cat > .gcloudignore << 'EOF'
         .git
         .github
@@ -304,231 +303,7 @@ steps:
         echo "✓ Configuration files created with contract address: $$CONTRACT_ADDRESS"
     waitFor: ['verify-files']
 
-  # Create missing dependencies
-  - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'create-dependencies'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        echo "Creating missing dependencies..."
-        
-        # Create contracts directory structure that routes expect
-        mkdir -p artifacts/contracts/voterID.sol
-        
-        # Create a mock VoterID.json file
-        cat > artifacts/contracts/voterID.sol/VoterID.json << 'EOF'
-        {
-          "contractName": "VoterID",
-          "abi": [],
-          "bytecode": "0x",
-          "deployedBytecode": "0x",
-          "linkReferences": {},
-          "deployedLinkReferences": {}
-        }
-        EOF
-        
-        # Create controllers directory and files if missing
-        mkdir -p controllers
-        
-        if [ ! -f "controllers/voterController.js" ]; then
-          echo "Creating voterController.js..."
-          cat > controllers/voterController.js << 'EOF'
-        const registerVoter = async (req, res) => {
-          try {
-            res.json({ 
-              success: true, 
-              message: 'Voter registration endpoint', 
-              data: req.body,
-              timestamp: new Date().toISOString()
-            });
-          } catch (error) {
-            res.status(500).json({ success: false, error: error.message });
-          }
-        };
-        
-        const verifyVoter = async (req, res) => {
-          try {
-            res.json({ 
-              success: true, 
-              message: 'Voter verification endpoint', 
-              data: req.body,
-              timestamp: new Date().toISOString()
-            });
-          } catch (error) {
-            res.status(500).json({ success: false, error: error.message });
-          }
-        };
-        
-        const checkVoterStatus = async (req, res) => {
-          try {
-            res.json({ 
-              success: true, 
-              message: 'Voter status check', 
-              address: req.params.address,
-              verified: false,
-              timestamp: new Date().toISOString()
-            });
-          } catch (error) {
-            res.status(500).json({ success: false, error: error.message });
-          }
-        };
-        
-        const getVoterDetails = async (req, res) => {
-          try {
-            res.json({ 
-              success: true, 
-              message: 'Voter details', 
-              address: req.params.address,
-              details: { name: 'Mock Voter', status: 'registered' },
-              timestamp: new Date().toISOString()
-            });
-          } catch (error) {
-            res.status(500).json({ success: false, error: error.message });
-          }
-        };
-        
-        const getVoterByAdmin = async (req, res) => {
-          try {
-            res.json({ 
-              success: true, 
-              message: 'Admin voter access', 
-              address: req.params.address,
-              adminData: { encrypted: false, verified: true },
-              timestamp: new Date().toISOString()
-            });
-          } catch (error) {
-            res.status(500).json({ success: false, error: error.message });
-          }
-        };
-        
-        module.exports = { registerVoter, verifyVoter, checkVoterStatus, getVoterDetails, getVoterByAdmin };
-        EOF
-        fi
-        
-        if [ ! -f "controllers/adminController.js" ]; then
-          echo "Creating adminController.js..."
-          cat > controllers/adminController.js << 'EOF'
-        const getDashboardStats = async (req, res) => {
-          res.json({ 
-            success: true, 
-            message: 'Dashboard stats',
-            stats: { totalVoters: 0, verifiedVoters: 0 },
-            timestamp: new Date().toISOString()
-          });
-        };
-        
-        const getAllVoters = async (req, res) => {
-          res.json({ 
-            success: true, 
-            message: 'All voters', 
-            data: [],
-            total: 0,
-            timestamp: new Date().toISOString()
-          });
-        };
-        
-        const getAdminLogs = async (req, res) => {
-          res.json({ 
-            success: true, 
-            message: 'Admin logs', 
-            data: [],
-            timestamp: new Date().toISOString()
-          });
-        };
-        
-        const getVoterByAddress = async (req, res) => {
-          res.json({ 
-            success: true, 
-            message: 'Voter by address', 
-            address: req.params.address,
-            timestamp: new Date().toISOString()
-          });
-        };
-        
-        const getHistoricalStats = async (req, res) => {
-          res.json({ 
-            success: true, 
-            message: 'Historical stats', 
-            data: [],
-            timestamp: new Date().toISOString()
-          });
-        };
-        
-        const getStateDistribution = async (req, res) => {
-          res.json({ 
-            success: true, 
-            message: 'State distribution', 
-            data: [],
-            timestamp: new Date().toISOString()
-          });
-        };
-        
-        const getHealthStatus = async (req, res) => {
-          res.json({ 
-            success: true, 
-            message: 'Health status',
-            database: 'connected',
-            timestamp: new Date().toISOString()
-          });
-        };
-        
-        module.exports = { getDashboardStats, getAllVoters, getAdminLogs, getVoterByAddress, getHistoricalStats, getStateDistribution, getHealthStatus };
-        EOF
-        fi
-        
-        # Create utils directory and blockchain utils
-        mkdir -p utils
-        
-        if [ ! -f "utils/blockchain.js" ]; then
-          echo "Creating blockchain.js..."
-          cat > utils/blockchain.js << 'EOF'
-        const registerVoter = async (address, name, dob, voterIdHash, aadharNumber, residentialAddress) => {
-          return { 
-            hash: 'mock-tx-hash-' + Date.now(), 
-            blockNumber: Math.floor(Math.random() * 1000000),
-            success: true
-          };
-        };
-        
-        const verifyVoter = async (voterAddress) => {
-          return { 
-            hash: 'mock-verify-hash-' + Date.now(), 
-            blockNumber: Math.floor(Math.random() * 1000000),
-            success: true
-          };
-        };
-        
-        const checkVoterStatus = async (address) => {
-          return Math.random() > 0.5; // Random boolean for testing
-        };
-        
-        const getVoterDetails = async (address) => {
-          return {
-            name: 'Mock Voter',
-            dob: Math.floor(Date.now() / 1000) - (25 * 365 * 24 * 60 * 60), // 25 years ago
-            registrationTimestamp: Math.floor(Date.now() / 1000),
-            lastVerifiedTimestamp: Math.floor(Date.now() / 1000),
-            verified: true
-          };
-        };
-        
-        const setRegistrationStatus = async (isOpen) => {
-          return { 
-            hash: 'mock-status-hash-' + Date.now(), 
-            blockNumber: Math.floor(Math.random() * 1000000),
-            status: isOpen ? 'open' : 'closed'
-          };
-        };
-        
-        module.exports = { registerVoter, verifyVoter, checkVoterStatus, getVoterDetails, setRegistrationStatus };
-        EOF
-        fi
-        
-        echo "✓ All dependencies created successfully"
-    waitFor: ['verify-files']
-
-  # Deploy to App Engine
+  # Deploy to App Engine  
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'deploy'
     entrypoint: 'bash'
@@ -538,7 +313,7 @@ steps:
         echo "Deploying to App Engine..."
         rm -f package-lock.json
         gcloud app deploy --quiet --verbosity=info
-    waitFor: ['create-config', 'create-dependencies', 'enable-apis']
+    waitFor: ['create-config', 'enable-apis']
 
 substitutions:
   _PRIVATE_KEY: '0xc9fc1cb318be162465ee2e222b94432bbbde124d161a4b058ea74f3ecd16a556'
