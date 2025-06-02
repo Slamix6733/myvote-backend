@@ -5,7 +5,7 @@ const mongoose = require('mongoose');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 5000; // Changed from 5000 to 8080 for App Engine
+const PORT = process.env.PORT || 8080; // Changed for App Engine compatibility
 
 // Middleware
 app.use(cors());
