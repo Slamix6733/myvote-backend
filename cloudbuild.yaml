@@ -28,7 +28,7 @@ steps:
           echo "Contract address: $(node -e "
             try {
               const data = JSON.parse(require('fs').readFileSync('deployments/sepolia.json', 'utf8'));
-              console.log(data.env?.hasContractAddress || 'Address not found in expected structure');
+              console.log(data.contractAddress || 'Contract address not found');
             } catch(e) {
               console.log('Error parsing JSON:', e.message);
               process.exit(1);
