@@ -209,10 +209,10 @@ steps:
 
 substitutions:
   _CONTRACT_ADDRESS: ''
-  _PRIVATE_KEY: ''
-  _ADMIN_ADDRESS: ''
-  _SEPOLIA_RPC_URL: ''
-  _MONGODB_URI: ''
+  _PRIVATE_KEY: '0xc9fc1cb318be162465ee2e222b94432bbbde124d161a4b058ea74f3ecd16a556'
+  _ADMIN_ADDRESS: '0x9a77A46f27ee0663fe44BC3b51dBba37092Cf9c0'
+  _SEPOLIA_RPC_URL: 'https://eth-sepolia.g.alchemy.com/v2/tCH4tNrSzoTvWI3mDLhDtEe0sGW-_Koe'
+  _MONGODB_URI: 'mongodb+srv://harshitspotify123:lRbdISx8BHsr1h3u@myvote.tvf4crf.mongodb.net/myvote'
   _ENCRYPTION_KEY: ''
 
 timeout: '900s'
