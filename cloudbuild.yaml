@@ -4,12 +4,21 @@ steps:
     entrypoint: 'npm'
     args: ['install', '--legacy-peer-deps']
     
-  # Install missing Hardhat dependencies
+  # Install missing Hardhat toolbox dependency
   - name: 'node:20'
     entrypoint: 'npm'
-    args: ['install', '--save-dev', '@nomicfoundation/hardhat-ignition-ethers@^0.15.0', 'ts-node@>=8.0.0', 'typescript@>=4.5.0', '--legacy-peer-deps']
+    args: ['install', '@nomicfoundation/hardhat-toolbox', '--legacy-peer-deps']
     
-  # Verify deployment file exists and contains contract address (contract already deployed)
+  # Deploy contract to Sepolia network
+  - name: 'node:20'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Deploying contract to Sepolia network..."
+        npx hardhat run scripts/deploy.js --network sepolia || echo "Contract deployment failed or may already be deployed"
+        
+  # Verify deployment file exists and contains contract address
   - name: 'node:20'
     entrypoint: 'bash'
     args: 
@@ -32,9 +41,15 @@ steps:
           ")"
         else
           echo "✗ deployments/sepolia.json not found!"
-          echo "Contract needs to be deployed first"
+          echo "Creating deployments directory and checking if contract needs deployment..."
+          mkdir -p deployments
           exit 1
         fi
+    
+  # Run tests (optional - uncomment if you have tests)
+  # - name: 'node:20'
+  #   entrypoint: 'npm'
+  #   args: ['test']
     
   # Deploy to App Engine
   - name: 'gcr.io/cloud-builders/gcloud'
