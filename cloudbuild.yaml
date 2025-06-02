@@ -41,13 +41,14 @@ steps:
       - |
         echo "Creating route files..."
         
-        # Create voters route
-        cat > routes/voters.js << 'EOF'
+        # Create voters route only if it doesn't exist
+        if [ ! -f "routes/voters.js" ]; then
+          echo "Creating routes/voters.js..."
+          cat > routes/voters.js << 'EOF'
         const express = require('express');
         const mongoose = require('mongoose');
         const router = express.Router();
         
-        // Define Voter schema if it doesn't exist
         const voterSchema = new mongoose.Schema({
           name: String,
           email: String,
@@ -78,53 +79,16 @@ steps:
           }
         });
         
-        router.post('/register', async (req, res) => {
-          try {
-            const voter = new Voter(req.body);
-            await voter.save();
-            res.json({ 
-              success: true, 
-              message: 'Voter registered successfully', 
-              data: voter 
-            });
-          } catch (error) {
-            console.error('Error registering voter:', error);
-            res.status(500).json({
-              success: false,
-              message: 'Error registering voter',
-              error: error.message
-            });
-          }
-        });
-        
-        router.post('/verify', async (req, res) => {
-          try {
-            const { id } = req.body;
-            const voter = await Voter.findByIdAndUpdate(
-              id, 
-              { verified: true }, 
-              { new: true }
-            );
-            res.json({ 
-              success: true, 
-              message: 'Voter verified successfully', 
-              data: voter 
-            });
-          } catch (error) {
-            console.error('Error verifying voter:', error);
-            res.status(500).json({
-              success: false,
-              message: 'Error verifying voter',
-              error: error.message
-            });
-          }
-        });
-        
         module.exports = router;
         EOF
+        else
+          echo "✓ Found existing routes/voters.js, preserving it"
+        fi
         
-        # Create upload route
-        cat > routes/upload.js << 'EOF'
+        # Create upload route only if it doesn't exist
+        if [ ! -f "routes/upload.js" ]; then
+          echo "Creating routes/upload.js..."
+          cat > routes/upload.js << 'EOF'
         const express = require('express');
         const multer = require('multer');
         const router = express.Router();
@@ -136,6 +100,26 @@ steps:
         
         module.exports = router;
         EOF
+        else
+          echo "✓ Found existing routes/upload.js, preserving it"
+        fi
+        
+        # Create health route only if it doesn't exist
+        if [ ! -f "routes/health.js" ]; then
+          echo "Creating routes/health.js..."
+          cat > routes/health.js << 'EOF'
+        const express = require('express');
+        const router = express.Router();
+        
+        router.get('/', (req, res) => {
+          res.json({ success: true, message: 'Health endpoint' });
+        });
+        
+        module.exports = router;
+        EOF
+        else
+          echo "✓ Found existing routes/health.js, preserving it"
+        fi
 
   # Create blockchain and admin routes
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -144,8 +128,10 @@ steps:
     args:
       - '-c'
       - |
-        # Create blockchain route
-        cat > routes/blockchain.js << 'EOF'
+        # Create blockchain route only if it doesn't exist
+        if [ ! -f "routes/blockchain.js" ]; then
+          echo "Creating routes/blockchain.js..."
+          cat > routes/blockchain.js << 'EOF'
         const express = require('express');
         const router = express.Router();
         
@@ -158,19 +144,16 @@ steps:
           });
         });
         
-        router.post('/vote', (req, res) => {
-          res.json({ success: true, message: 'Vote submission', data: req.body });
-        });
-        
-        router.get('/results/:electionId', (req, res) => {
-          res.json({ success: true, electionId: req.params.electionId, results: [] });
-        });
-        
         module.exports = router;
         EOF
+        else
+          echo "✓ Found existing routes/blockchain.js, preserving it"
+        fi
         
-        # Create admin route
-        cat > routes/admin.js << 'EOF'
+        # Create admin route only if it doesn't exist
+        if [ ! -f "routes/admin.js" ]; then
+          echo "Creating routes/admin.js..."
+          cat > routes/admin.js << 'EOF'
         const express = require('express');
         const router = express.Router();
         
@@ -178,16 +161,11 @@ steps:
           res.json({ success: true, message: 'Admin dashboard' });
         });
         
-        router.post('/elections', (req, res) => {
-          res.json({ success: true, message: 'Create election', data: req.body });
-        });
-        
-        router.get('/elections', (req, res) => {
-          res.json({ success: true, elections: [] });
-        });
-        
         module.exports = router;
         EOF
+        else
+          echo "✓ Found existing routes/admin.js, preserving it"
+        fi
 
   # Extract contract address from deployment
   - name: 'gcr.io/cloud-builders/gcloud'
