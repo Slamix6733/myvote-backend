@@ -59,6 +59,18 @@ if (process.env.MONGODB_URI) {
 
 // Import routes
 console.log('Starting route loading...');
+console.log('Current working directory:', process.cwd());
+console.log('__dirname:', __dirname);
+
+// Check if routes directory exists
+const fs = require('fs');
+const routesPath = path.join(__dirname, 'routes');
+console.log('Routes path:', routesPath);
+console.log('Routes directory exists:', fs.existsSync(routesPath));
+
+if (fs.existsSync(routesPath)) {
+    console.log('Files in routes directory:', fs.readdirSync(routesPath));
+}
 
 const routes = [
     { path: '/api/voters', file: './routes/voters', name: 'voters' },
@@ -73,21 +85,34 @@ let loadedRoutes = 0;
 routes.forEach(route => {
     try {
         console.log(`Attempting to load ${route.name} from ${route.file}...`);
+
+        // Check if file exists before requiring
+        const fullPath = path.join(__dirname, route.file.replace('./', ''));
+        console.log(`Full path: ${fullPath}.js`);
+        console.log(`File exists: ${fs.existsSync(fullPath + '.js')}`);
+
         const routeHandler = require(route.file);
         app.use(route.path, routeHandler);
         console.log(`✓ ${route.name} routes loaded successfully`);
         loadedRoutes++;
     } catch (error) {
         console.error(`✗ Failed to load ${route.name} routes:`, error.message);
+        console.error('Error code:', error.code);
         console.error('Stack trace:', error.stack);
 
-        // Create a simple fallback route
+        // Create a detailed fallback route
         app.use(route.path, (req, res) => {
             res.status(500).json({
                 error: `${route.name} route failed to load`,
                 message: error.message,
-                details: error.stack,
-                timestamp: new Date().toISOString()
+                code: error.code,
+                filePath: route.file,
+                timestamp: new Date().toISOString(),
+                debugInfo: {
+                    cwd: process.cwd(),
+                    dirname: __dirname,
+                    routesExists: fs.existsSync(routesPath)
+                }
             });
         });
     }
