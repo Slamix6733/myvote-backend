@@ -63,14 +63,19 @@ try {
     const uploadRoutes = require('./routes/upload');
     const blockchainRoutes = require('./routes/blockchain');
     const adminRoutes = require('./routes/admin');
+    const healthRoutes = require('./routes/health');
 
     // Use routes
     app.use('/api/voters', voterRoutes);
     app.use('/api/upload', uploadRoutes);
     app.use('/api/blockchain', blockchainRoutes);
     app.use('/api/admin', adminRoutes);
+    app.use('/api/health', healthRoutes);
+
+    console.log('✓ All routes loaded successfully');
 } catch (error) {
     console.error('Error loading routes:', error);
+    // Continue without crashing - routes might not exist yet
 }
 
 // Error handling middleware
