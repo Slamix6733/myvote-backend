@@ -530,16 +530,47 @@ POST /api/voters/register
 }
 ```
 
+**Another Example:**
+
+```json
+{
+  "address": "0x742d35Cc7B7d8932B8D74E8E32C3e8B5F9C8A1D6",
+  "name": "Priya Sharma",
+  "gender": "Female",
+  "dob": "1995-06-15",
+  "city": "Delhi",
+  "state": "Delhi",
+  "aadharNumber": "987654321098",
+  "phoneNumber": "8765432109",
+  "email": "priya.sharma@example.com",
+  "aadharImageUrl": "/uploads/priya_aadhar.png"
+}
+```
+
 **Response (Success - 201):**
 
 ```json
 {
   "message": "Voter registered successfully",
   "blockchainAddress": "0x851BdD62Fd471a652CCFb4a0aa65E41e33B0508C",
-  "blockchainTxHash": "0xa1b2c3...",
-  "onBlockchain": true
+  "blockchainTxHash": "0xa1b2c3d4e5f6...",
+  "onBlockchain": true,
+  "gasUsed": "284567"
 }
 ```
+
+**Response Fields Explanation:**
+- `message`: Operation status message
+- `blockchainAddress`: Voter's Ethereum wallet address
+- `blockchainTxHash`: Blockchain transaction hash (null if blockchain write failed)
+- `onBlockchain`: Boolean indicating if data was written to blockchain
+- `gasUsed`: Amount of gas consumed for the blockchain transaction
+
+**⚠️ Troubleshooting:**
+If you see `"blockchainTxHash": null` and `"onBlockchain": false`, it means:
+- Voter data was saved to MongoDB only
+- Blockchain transaction failed (check contract address, network connection, gas settings)
+- Admin private key or contract ABI might be incorrect
 
 **Response (Error - 400/500):**
 
@@ -1208,21 +1239,3 @@ When you're ready to move beyond local testing, you can deploy to Sepolia testne
 101. **Identity Verification Services**: "What third-party KYC/identity verification services integrate well with blockchain-based systems?"
 
 102. **Security Auditing**: "How often should I conduct security audits for a production voting system, and what should they cover?"
-
-### **📱 Mobile App Specific Preparation**
-
-**Before discussing with mentors:**
-1. **Demo the Mobile Flow**: Show the complete user journey from registration to verification
-2. **Performance Metrics**: Measure app load times, API response times, and crash rates
-3. **User Feedback**: Collect feedback from test users about UX/UI improvements
-4. **Technical Debt**: Identify React Native specific issues like bundle size, memory leaks
-5. **Platform Differences**: Document iOS vs Android specific challenges you've faced
-
-### **🔐 Super Admin System Preparation**
-
-**For super admin discussions:**
-1. **Current Admin Structure**: Document your existing admin hierarchy and permissions
-2. **Admin Workflows**: Map out current admin verification and management processes
-3. **Scalability Concerns**: Identify bottlenecks in current super admin implementation
-4. **Security Review**: List all super admin privileges and potential security risks
-5. **Compliance Requirements**: Research legal requirements for admin audit trails in your target regions

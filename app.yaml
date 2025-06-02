@@ -18,7 +18,7 @@ env_variables:
   ADMIN_ADDRESS: "0x9a77A46f27ee0663fe44BC3b51dBba37092Cf9c0"
   MONGODB_URI: "mongodb+srv://harshitspotify123:lRbdISx8BHsr1h3u@myvote.tvf4crf.mongodb.net/myvote"
   ENCRYPTION_KEY: "45e12bcb6b83973ac8f3df07720a8b07"
-  DEPLOYMENT_FILE_PATH: "./deployments/sepolia.json"
+ 
 
 # Instance class (adjust based on your needs)
 instance_class: F2
