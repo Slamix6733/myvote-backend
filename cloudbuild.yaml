@@ -142,9 +142,9 @@ steps:
       - |
         echo "Extracting contract address from deployments/sepolia.json..."
         if [ -f "deployments/sepolia.json" ]; then
-          CONTRACT_ADDR=$(cat deployments/sepolia.json | grep -o '"address"[[:space:]]*:[[:space:]]*"[^"]*"' | grep -o '"[^"]*"$' | tr -d '"')
-          echo "Found contract address: $CONTRACT_ADDR"
-          echo "CONTRACT_ADDRESS=$CONTRACT_ADDR" > contract.env
+          CONTRACT_ADDR=$$(cat deployments/sepolia.json | grep -o '"address"[[:space:]]*:[[:space:]]*"[^"]*"' | grep -o '"[^"]*"$$' | tr -d '"')
+          echo "Found contract address: $$CONTRACT_ADDR"
+          echo "CONTRACT_ADDRESS=$$CONTRACT_ADDR" > contract.env
           echo "✓ Contract address extracted successfully"
         else
           echo "⚠️  deployments/sepolia.json not found, using empty contract address"
@@ -162,7 +162,7 @@ steps:
         # Read contract address from extracted file
         if [ -f "contract.env" ]; then
           source contract.env
-          echo "Using contract address: $CONTRACT_ADDRESS"
+          echo "Using contract address: $$CONTRACT_ADDRESS"
         else
           CONTRACT_ADDRESS=""
         fi
@@ -191,7 +191,7 @@ steps:
         runtime: nodejs20
         env_variables:
           NODE_ENV: 'production'
-          CONTRACT_ADDRESS: '${CONTRACT_ADDRESS}'
+          CONTRACT_ADDRESS: '$$CONTRACT_ADDRESS'
           SEPOLIA_RPC_URL: '${_SEPOLIA_RPC_URL}'
           ADMIN_ADDRESS: '${_ADMIN_ADDRESS}'
           MONGODB_URI: '${_MONGODB_URI}'
@@ -222,7 +222,7 @@ steps:
         node_modules/.cache/
         EOF
         
-        echo "✓ Configuration files created with contract address: $CONTRACT_ADDRESS"
+        echo "✓ Configuration files created with contract address: $$CONTRACT_ADDRESS"
     waitFor: ['extract-contract', 'create-routes', 'create-more-routes']
 
   # Deploy to App Engine
