@@ -48,185 +48,177 @@ steps:
           if [ ! -f "routes/voters.js" ]; then
             echo "Creating routes/voters.js..."
             cat > routes/voters.js << 'ROUTEEOF'
-const express = require('express');
-const router = express.Router();
-
-// Get all voters
-router.get('/', (req, res) => {
-  res.json({ 
-    success: true, 
-    message: 'Voters endpoint - GET /api/voters', 
-    data: [],
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Register voter
-router.post('/register', (req, res) => {
-  console.log('Voter registration request:', req.body);
-  res.json({ 
-    success: true, 
-    message: 'Voter registration endpoint - POST /api/voters/register', 
-    data: req.body,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Verify voter
-router.post('/verify', (req, res) => {
-  console.log('Voter verification request:', req.body);
-  res.json({ 
-    success: true, 
-    message: 'Voter verification endpoint - POST /api/voters/verify', 
-    data: req.body,
-    timestamp: new Date().toISOString()
-  });
-});
-
-module.exports = router;
-ROUTEEOF
+        const express = require('express');
+        const router = express.Router();
+        
+        // Get all voters
+        router.get('/', (req, res) => {
+          res.json({ 
+            success: true, 
+            message: 'Voters endpoint - GET /api/voters', 
+            data: [],
+            timestamp: new Date().toISOString()
+          });
+        });
+        
+        // Register voter
+        router.post('/register', (req, res) => {
+          console.log('Voter registration request:', req.body);
+          res.json({ 
+            success: true, 
+            message: 'Voter registration endpoint - POST /api/voters/register', 
+            data: req.body,
+            timestamp: new Date().toISOString()
+          });
+        });
+        
+        // Verify voter
+        router.post('/verify', (req, res) => {
+          console.log('Voter verification request:', req.body);
+          res.json({ 
+            success: true, 
+            message: 'Voter verification endpoint - POST /api/voters/verify', 
+            data: req.body,
+            timestamp: new Date().toISOString()
+          });
+        });
+        
+        module.exports = router;
+        ROUTEEOF
           fi
           
           # Create basic upload route if missing
           if [ ! -f "routes/upload.js" ]; then
             echo "Creating routes/upload.js..."
             cat > routes/upload.js << 'ROUTEEOF'
-const express = require('express');
-const multer = require('multer');
-const router = express.Router();
-
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/')
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname)
-  }
-});
-
-const upload = multer({ 
-  storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
-});
-
-// Upload file endpoint
-router.post('/', upload.single('file'), (req, res) => {
-  try {
-    console.log('File upload request:', req.file);
-    res.json({ 
-      success: true, 
-      message: 'File upload endpoint - POST /api/upload',
-      file: req.file ? {
-        filename: req.file.filename,
-        originalname: req.file.originalname,
-        size: req.file.size,
-        path: req.file.path
-      } : null,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Upload error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Upload failed',
-      error: error.message
-    });
-  }
-});
-
-module.exports = router;
-ROUTEEOF
+        const express = require('express');
+        const multer = require('multer');
+        const router = express.Router();
+        
+        const storage = multer.diskStorage({
+          destination: function (req, file, cb) {
+            cb(null, 'uploads/')
+          },
+          filename: function (req, file, cb) {
+            cb(null, Date.now() + '-' + file.originalname)
+          }
+        });
+        
+        const upload = multer({ 
+          storage: storage,
+          limits: { fileSize: 10 * 1024 * 1024 }
+        });
+        
+        router.post('/', upload.single('file'), (req, res) => {
+          try {
+            console.log('File upload request:', req.file);
+            res.json({ 
+              success: true, 
+              message: 'File upload endpoint - POST /api/upload',
+              file: req.file ? {
+                filename: req.file.filename,
+                originalname: req.file.originalname,
+                size: req.file.size,
+                path: req.file.path
+              } : null,
+              timestamp: new Date().toISOString()
+            });
+          } catch (error) {
+            console.error('Upload error:', error);
+            res.status(500).json({
+              success: false,
+              message: 'Upload failed',
+              error: error.message
+            });
+          }
+        });
+        
+        module.exports = router;
+        ROUTEEOF
           fi
           
           # Create basic blockchain route if missing
           if [ ! -f "routes/blockchain.js" ]; then
             echo "Creating routes/blockchain.js..."
             cat > routes/blockchain.js << 'ROUTEEOF'
-const express = require('express');
-const router = express.Router();
-
-// Get contract info
-router.get('/contract', (req, res) => {
-  console.log('Contract info request');
-  res.json({ 
-    success: true,
-    message: 'Contract info endpoint - GET /api/blockchain/contract',
-    contractAddress: process.env.CONTRACT_ADDRESS || 'Not configured',
-    network: 'sepolia',
-    rpcUrl: process.env.SEPOLIA_RPC_URL ? 'Configured' : 'Not configured',
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Submit vote
-router.post('/vote', (req, res) => {
-  console.log('Vote submission request:', req.body);
-  res.json({ 
-    success: true, 
-    message: 'Vote submission endpoint - POST /api/blockchain/vote', 
-    data: req.body,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Get election results
-router.get('/results/:electionId', (req, res) => {
-  console.log('Results request for election:', req.params.electionId);
-  res.json({ 
-    success: true,
-    message: 'Election results endpoint - GET /api/blockchain/results/:electionId',
-    electionId: req.params.electionId,
-    results: [],
-    timestamp: new Date().toISOString()
-  });
-});
-
-module.exports = router;
-ROUTEEOF
+        const express = require('express');
+        const router = express.Router();
+        
+        router.get('/contract', (req, res) => {
+          console.log('Contract info request');
+          res.json({ 
+            success: true,
+            message: 'Contract info endpoint - GET /api/blockchain/contract',
+            contractAddress: process.env.CONTRACT_ADDRESS || 'Not configured',
+            network: 'sepolia',
+            rpcUrl: process.env.SEPOLIA_RPC_URL ? 'Configured' : 'Not configured',
+            timestamp: new Date().toISOString()
+          });
+        });
+        
+        router.post('/vote', (req, res) => {
+          console.log('Vote submission request:', req.body);
+          res.json({ 
+            success: true, 
+            message: 'Vote submission endpoint - POST /api/blockchain/vote', 
+            data: req.body,
+            timestamp: new Date().toISOString()
+          });
+        });
+        
+        router.get('/results/:electionId', (req, res) => {
+          console.log('Results request for election:', req.params.electionId);
+          res.json({ 
+            success: true,
+            message: 'Election results endpoint - GET /api/blockchain/results/:electionId',
+            electionId: req.params.electionId,
+            results: [],
+            timestamp: new Date().toISOString()
+          });
+        });
+        
+        module.exports = router;
+        ROUTEEOF
           fi
           
           # Create basic admin route if missing
           if [ ! -f "routes/admin.js" ]; then
             echo "Creating routes/admin.js..."
             cat > routes/admin.js << 'ROUTEEOF'
-const express = require('express');
-const router = express.Router();
-
-// Get admin dashboard
-router.get('/dashboard', (req, res) => {
-  console.log('Admin dashboard request');
-  res.json({ 
-    success: true, 
-    message: 'Admin dashboard endpoint - GET /api/admin/dashboard',
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Create election
-router.post('/elections', (req, res) => {
-  console.log('Create election request:', req.body);
-  res.json({ 
-    success: true, 
-    message: 'Create election endpoint - POST /api/admin/elections', 
-    data: req.body,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Get all elections
-router.get('/elections', (req, res) => {
-  console.log('Get elections request');
-  res.json({ 
-    success: true,
-    message: 'Get elections endpoint - GET /api/admin/elections',
-    elections: [],
-    timestamp: new Date().toISOString()
-  });
-});
-
-module.exports = router;
-ROUTEEOF
+        const express = require('express');
+        const router = express.Router();
+        
+        router.get('/dashboard', (req, res) => {
+          console.log('Admin dashboard request');
+          res.json({ 
+            success: true, 
+            message: 'Admin dashboard endpoint - GET /api/admin/dashboard',
+            timestamp: new Date().toISOString()
+          });
+        });
+        
+        router.post('/elections', (req, res) => {
+          console.log('Create election request:', req.body);
+          res.json({ 
+            success: true, 
+            message: 'Create election endpoint - POST /api/admin/elections', 
+            data: req.body,
+            timestamp: new Date().toISOString()
+          });
+        });
+        
+        router.get('/elections', (req, res) => {
+          console.log('Get elections request');
+          res.json({ 
+            success: true,
+            message: 'Get elections endpoint - GET /api/admin/elections',
+            elections: [],
+            timestamp: new Date().toISOString()
+          });
+        });
+        
+        module.exports = router;
+        ROUTEEOF
           fi
           
           echo "✓ All route files created/verified"
