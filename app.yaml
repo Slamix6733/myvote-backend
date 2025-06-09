@@ -18,7 +18,16 @@ env_variables:
   ADMIN_ADDRESS: "0x9a77A46f27ee0663fe44BC3b51dBba37092Cf9c0"
   MONGODB_URI: "mongodb+srv://harshitspotify123:lRbdISx8BHsr1h3u@myvote.tvf4crf.mongodb.net/myvote"
   ENCRYPTION_KEY: "45e12bcb6b83973ac8f3df07720a8b07"
- 
+  INITIAL_FUNDING_AMOUNT: "0.01"
+  WALLET_SALT: "f8e9d7c6b5a4930817263f4e5d6c7b8a9f0e1d2c3b4a59687f6e5d4c3b2a1908"
+  MASTER_PRIVATE_KEY: "0xc9fc1cb318be162465ee2e222b94432bbbde124d161a4b058ea74f3ecd16a556"
+  FIREBASE_API_KEY: "AIzaSyDxwGiuZbh0v4lpki0RYe6TR81EoigjZgE"
+  FIREBASE_AUTH_DOMAIN: "myvote-5f8ec.firebaseapp.com"
+  FIREBASE_PROJECT_ID: "myvote-5f8ec"
+  FIREBASE_STORAGE_BUCKET: "myvote-5f8ec.firebasestorage.app"
+  FIREBASE_MESSAGING_SENDER_ID: "105982017554"
+  FIREBASE_APP_ID: "1:105982017554:web:dc079679be1146b974d8cb"
+  FIREBASE_MEASUREMENT_ID: "G-LTJMWL413G"
 
 # Instance class (adjust based on your needs)
 instance_class: F2

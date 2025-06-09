@@ -77,7 +77,8 @@ const routes = [
     { path: '/api/upload', file: './routes/upload', name: 'upload' },
     { path: '/api/blockchain', file: './routes/blockchain', name: 'blockchain' },
     { path: '/api/admin', file: './routes/admin', name: 'admin' },
-    { path: '/api/health', file: './routes/health', name: 'health' }
+    { path: '/api/health', file: './routes/health', name: 'health' },
+    { path: '/api/qrcode', file: './routes/qrcode', name: 'qrcode' } // Add this line
 ];
 
 let loadedRoutes = 0;

@@ -1,5 +1,3 @@
-
-
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
@@ -33,6 +31,7 @@ app.use('/api/voters', voterRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/blockchain', blockchainRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/voting', require('./routes/voting'));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
