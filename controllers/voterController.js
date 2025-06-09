@@ -14,7 +14,16 @@ const Voter = require('../models/Voter');
 const AdminLog = require('../models/AdminLog');
 const { logAdminActivity } = require('./adminController');
 
-// Register a voter (Step 1)
+// Import wallet abstraction service
+const WalletAbstractionService = require('../services/walletService');
+const walletService = new WalletAbstractionService();
+
+// Import QR code service
+const qrCodeService = require('../services/qrCodeService');
+
+// ========== EXISTING FUNCTIONS (Keep as is) ==========
+
+// Register a voter (Step 1) - Original wallet-based registration
 const registerVoter = async (req, res) => {
   console.log("Received voter registration request:", req.body);
   try {
@@ -169,7 +178,7 @@ const registerVoter = async (req, res) => {
   }
 };
 
-// Verify a voter (admin only)
+// Verify a voter (admin only) - Keep existing
 const verifyVoter = async (req, res) => {
   try {
     const { adminAddress, voterAddress, verificationNotes } = req.body;
@@ -207,17 +216,33 @@ const verifyVoter = async (req, res) => {
       return res.status(404).json({ error: "Voter not found" });
     }
 
+    // Generate QR code after successful verification
+    try {
+      const qrResult = await qrCodeService.generateQRCodeForVoter({
+        name: voter.rawData.name,
+        aadharNumber: voter.rawData.aadharNumber,
+        txHash: blockchainResult?.hash || 'manual_verification',
+        voterAddress: voterAddress
+      });
+
+      // Update voter with QR code data
+      voter.qrCode = {
+        nameHash: qrResult.qrCodeData.nameHash,
+        aadharHash: qrResult.qrCodeData.aadharHash,
+        txHash: qrResult.qrCodeData.txHash,
+        firebaseUrl: qrResult.firebaseUrl,
+        fileName: qrResult.fileName,
+        generatedAt: new Date()
+      };
+    } catch (qrError) {
+      console.warn("QR code generation failed:", qrError.message);
+      // Continue without QR code
+    }
+
     voter.isVerified = true;
     voter.verificationDate = new Date();
     voter.verificationNotes = verificationNotes || "";
     voter.verifiedBy = adminAddress;
-
-    // Add blockchain verification details if available
-    if (blockchainResult && blockchainResult.hash) {
-      voter.blockchain = voter.blockchain || {};
-      voter.blockchain.verificationTxHash = blockchainResult.hash;
-      voter.blockchain.lastVerifiedTimestamp = Date.now();
-    }
 
     await voter.save();
 
@@ -235,7 +260,9 @@ const verifyVoter = async (req, res) => {
 
     res.json({
       message: "Voter verified successfully",
-      verificationDate: voter.verificationDate
+      verificationDate: voter.verificationDate,
+      qrCodeGenerated: !!voter.qrCode?.firebaseUrl,
+      qrCodeUrl: voter.qrCode?.firebaseUrl || null
     });
   } catch (error) {
     console.error("Verification error:", error);
@@ -271,7 +298,7 @@ const verifyVoter = async (req, res) => {
   }
 };
 
-// Check voter status
+// Check voter status - Keep existing
 const checkVoterStatusController = async (req, res) => {
   try {
     const { address } = req.params;
@@ -306,7 +333,7 @@ const checkVoterStatusController = async (req, res) => {
   }
 };
 
-// Get voter details
+// Get voter details - Keep existing
 const getVoterDetailsController = async (req, res) => {
   try {
     const { address } = req.params;
@@ -366,7 +393,7 @@ const getVoterDetailsController = async (req, res) => {
   }
 };
 
-// Get voter data by admin (with decrypted data)
+// Get voter data by admin - Keep existing
 const getVoterByAdmin = async (req, res) => {
   try {
     const { address } = req.params;
@@ -417,10 +444,373 @@ const getVoterByAdmin = async (req, res) => {
   }
 };
 
+// ========== NEW WALLET ABSTRACTION FUNCTIONS ==========
+
+// Register voter with Aadhar number only (no wallet needed)
+const registerVoterWithAadhar = async (req, res) => {
+  console.log("Received Aadhar-based voter registration request:", req.body);
+  try {
+    const {
+      name,
+      aadharNumber,
+      dob,
+      phoneNumber,
+      email,
+      city,
+      state,
+      gender
+    } = req.body;
+
+    // Validate required fields
+    if (!name || !aadharNumber) {
+      return res.status(400).json({
+        error: "Missing required fields",
+        details: "name and aadharNumber are required"
+      });
+    }
+
+    // Check if voter already exists by Aadhar
+    const existingVoter = await Voter.findOne({
+      'rawData.aadharNumber': aadharNumber
+    });
+
+    if (existingVoter) {
+      return res.status(400).json({
+        error: 'Voter already registered with this Aadhar number'
+      });
+    }
+
+    // Generate wallet automatically
+    const walletData = walletService.generateWalletFromAadhar(aadharNumber);
+    console.log("Generated wallet for Aadhar voter:", walletData.address);
+
+    // Fund the wallet with gas money
+    let fundingTxHash = null;
+    try {
+      fundingTxHash = await walletService.fundWallet(walletData.address);
+      console.log("Funded wallet with tx:", fundingTxHash);
+    } catch (fundError) {
+      console.warn("Failed to fund wallet:", fundError.message);
+      // Continue anyway - user can fund later
+    }
+
+    // Create blockchain hashes
+    const { nameHash, aadharHash } = createBlockchainHashes({ name, aadharNumber });
+
+    // Register on blockchain (optional - continue if fails)
+    let blockchainResult = null;
+    try {
+      blockchainResult = await registerVoterOnBlockchain(nameHash, aadharHash, walletData.address);
+      console.log("Blockchain registration successful for Aadhar voter");
+    } catch (blockchainError) {
+      console.warn("Blockchain registration failed for Aadhar voter:", blockchainError.message);
+    }
+
+    // Encrypt sensitive data
+    const encryptedData = encryptSensitiveData({
+      name,
+      aadharNumber,
+      phoneNumber,
+      email,
+      dob,
+      // Store wallet abstraction data in encrypted format
+      walletAbstraction: {
+        encryptedPrivateKey: walletService.encryptPrivateKey(walletData.privateKey, aadharNumber),
+        fundingTxHash
+      }
+    });
+
+    // Store in MongoDB using existing schema
+    const voter = new Voter({
+      blockchainAddress: walletData.address,
+      encryptedData,
+      rawData: {
+        name,
+        aadharNumber
+      },
+      blockchain: {
+        nameHash,
+        aadharHash: ethers.keccak256(ethers.toUtf8Bytes(aadharNumber)),
+        txHash: blockchainResult?.hash || null,
+        registrationTimestamp: Date.now()
+      },
+      district: `${city || ''}, ${state || ''}`.trim().replace(/^,\s*|,\s*$/g, ''),
+      gender,
+      dob: dob ? new Date(dob) : null
+    });
+
+    await voter.save();
+
+    console.log("Aadhar-based voter registration complete");
+    res.status(201).json({
+      message: 'Voter registered successfully with Aadhar',
+      voterAddress: walletData.address,
+      blockchainTxHash: blockchainResult?.hash || null,
+      fundingTxHash,
+      registrationId: voter._id,
+      registrationMethod: 'aadhar'
+    });
+
+  } catch (error) {
+    console.error('Aadhar registration error:', error);
+    res.status(500).json({
+      error: 'Registration failed',
+      details: error.message
+    });
+  }
+};
+
+// Get voter by Aadhar number
+const getVoterByAadhar = async (req, res) => {
+  try {
+    const { aadharNumber } = req.params;
+
+    const voter = await Voter.findOne({
+      'rawData.aadharNumber': aadharNumber
+    });
+
+    if (!voter) {
+      return res.status(404).json({ error: 'Voter not found' });
+    }
+
+    res.json({
+      registrationId: voter._id,
+      blockchainAddress: voter.blockchainAddress,
+      isVerified: voter.isVerified,
+      registrationDate: voter.createdAt,
+      verificationDate: voter.verificationDate,
+      district: voter.district,
+      gender: voter.gender,
+      name: voter.rawData?.name,
+      registrationMethod: 'aadhar'
+    });
+
+  } catch (error) {
+    console.error('Aadhar lookup error:', error);
+    res.status(500).json({
+      error: 'Lookup failed',
+      details: error.message
+    });
+  }
+};
+
+// Check registration status by Aadhar
+const checkStatusByAadhar = async (req, res) => {
+  try {
+    const { aadharNumber } = req.params;
+
+    const voter = await Voter.findOne({
+      'rawData.aadharNumber': aadharNumber
+    });
+
+    if (!voter) {
+      return res.json({
+        isRegistered: false,
+        message: 'No registration found for this Aadhar number'
+      });
+    }
+
+    res.json({
+      isRegistered: true,
+      isVerified: voter.isVerified,
+      blockchainAddress: voter.blockchainAddress,
+      registrationDate: voter.createdAt,
+      verificationDate: voter.verificationDate,
+      registrationMethod: 'aadhar'
+    });
+
+  } catch (error) {
+    console.error('Aadhar status check error:', error);
+    res.status(500).json({
+      error: 'Status check failed',
+      details: error.message
+    });
+  }
+};
+
+// Add new function to verify voter by Aadhar (admin only)
+const verifyVoterByAadhar = async (req, res) => {
+  try {
+    const { aadharNumber } = req.params;
+    const { verificationNotes } = req.body;
+    const adminAddress = req.headers['x-admin-address'] || req.query.adminAddress || req.body.adminAddress;
+
+    // Find voter by Aadhar
+    const voter = await Voter.findOne({ 'rawData.aadharNumber': aadharNumber });
+
+    if (!voter) {
+      return res.status(404).json({ error: "Voter not found" });
+    }
+
+    if (voter.isVerified) {
+      return res.status(400).json({ error: "Voter already verified" });
+    }
+
+    // Update verification status
+    voter.isVerified = true;
+    voter.verificationDate = new Date();
+    voter.verificationNotes = verificationNotes || "";
+    voter.verifiedBy = adminAddress;
+
+    // Generate QR code after verification
+    try {
+      const qrResult = await qrCodeService.generateQRCodeForVoter({
+        name: voter.rawData.name,
+        aadharNumber: voter.rawData.aadharNumber,
+        txHash: 'aadhar_verification',
+        voterAddress: voter.blockchainAddress
+      });
+
+      voter.qrCode = {
+        nameHash: qrResult.qrCodeData.nameHash,
+        aadharHash: qrResult.qrCodeData.aadharHash,
+        txHash: qrResult.qrCodeData.txHash,
+        firebaseUrl: qrResult.firebaseUrl,
+        fileName: qrResult.fileName,
+        generatedAt: new Date()
+      };
+    } catch (qrError) {
+      console.warn("QR code generation failed:", qrError.message);
+    }
+
+    await voter.save();
+
+    // Log admin activity
+    await logAdminActivity(
+      adminAddress,
+      'VERIFY_VOTER_BY_AADHAR',
+      `Admin verified voter with Aadhar ${aadharNumber}`,
+      voter.blockchainAddress,
+      null,
+      'SUCCESS',
+      { message: "Aadhar-based voter verification" },
+      req.ip
+    );
+
+    res.json({
+      message: "Voter verified successfully",
+      blockchainAddress: voter.blockchainAddress,
+      verificationDate: voter.verificationDate,
+      registrationMethod: 'aadhar'
+    });
+
+  } catch (error) {
+    console.error("Aadhar verification error:", error);
+    res.status(500).json({
+      error: "Verification failed",
+      details: error.message
+    });
+  }
+};
+
+// Add new function for generating voting QR
+const generateVotingQR = async (req, res) => {
+  try {
+    const { aadharNumber } = req.params;
+    const { expirationMinutes = 30 } = req.body;
+
+    // Find voter by Aadhar
+    const voter = await Voter.findOne({ 'rawData.aadharNumber': aadharNumber });
+
+    if (!voter) {
+      return res.status(404).json({ error: "Voter not found" });
+    }
+
+    if (!voter.isVerified) {
+      return res.status(400).json({ error: "Voter is not verified" });
+    }
+
+    if (voter.isVoted) {
+      return res.status(400).json({ error: "Voter has already voted" });
+    }
+
+    // Generate new QR code with expiration
+    const qrResult = await qrCodeService.generateQRCodeForVoter({
+      nameHash: voter.blockchain?.nameHash,
+      aadharHash: voter.blockchain?.aadharHash,
+      txHash: voter.blockchain?.txHash || 'voting_qr',
+      blockchainAddress: voter.blockchainAddress,
+      voterAddress: voter.blockchainAddress
+    }, expirationMinutes);
+
+    // Update voter with new QR code
+    voter.qrCode = {
+      nameHash: qrResult.qrCodeData.nameHash,
+      aadharHash: qrResult.qrCodeData.aadharHash,
+      txHash: qrResult.qrCodeData.txHash,
+      firebaseUrl: qrResult.firebaseUrl,
+      fileName: qrResult.fileName,
+      generatedAt: new Date(),
+      expiresAt: qrResult.expiresAt,
+      isActive: true
+    };
+
+    await voter.save();
+
+    res.json({
+      message: "Voting QR code generated successfully",
+      qrCodeUrl: qrResult.firebaseUrl,
+      expiresAt: qrResult.expiresAt,
+      expirationMinutes
+    });
+
+  } catch (error) {
+    console.error("QR generation error:", error);
+    res.status(500).json({
+      error: "Failed to generate voting QR code",
+      details: error.message
+    });
+  }
+};
+
+// Add function to process vote via QR scan
+const processVoteViaScan = async (req, res) => {
+  try {
+    const { qrData } = req.body;
+
+    if (!qrData) {
+      return res.status(400).json({ error: "QR data is required" });
+    }
+
+    const result = await qrCodeService.processVoting(qrData);
+
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    res.json({
+      message: result.message,
+      voterAddress: result.voterAddress,
+      votingDate: result.votingDate
+    });
+
+  } catch (error) {
+    console.error("Vote processing error:", error);
+    res.status(500).json({
+      error: "Failed to process vote",
+      details: error.message
+    });
+  }
+};
+
+// ========== EXPORTS ==========
 module.exports = {
+  // Existing wallet-based functions
   registerVoter,
   verifyVoter,
   checkVoterStatus: checkVoterStatusController,
   getVoterDetails: getVoterDetailsController,
-  getVoterByAdmin
+  getVoterByAdmin,
+
+  // New wallet abstraction functions
+  registerVoterWithAadhar,
+  getVoterByAadhar,
+  checkStatusByAadhar,
+
+  // New Aadhar verification function
+  verifyVoterByAadhar,
+
+  // New QR code functions
+  generateVotingQR,
+  processVoteViaScan
 };

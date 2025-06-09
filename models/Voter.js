@@ -60,6 +60,28 @@ const VoterSchema = new mongoose.Schema({
   },
   verifiedBy: {
     type: String
+  },
+  // Add QR code fields
+  qrCode: {
+    nameHash: String,
+    aadharHash: String,
+    txHash: String,
+    firebaseUrl: String,
+    fileName: String,
+    generatedAt: Date,
+    expiresAt: Date,  // Add expiration time
+    isActive: {       // Add active status
+      type: Boolean,
+      default: true
+    }
+  },
+  // Add voting status
+  isVoted: {
+    type: Boolean,
+    default: false
+  },
+  votingDate: {
+    type: Date
   }
 }, schemaOptions);
 
@@ -67,5 +89,9 @@ const VoterSchema = new mongoose.Schema({
 VoterSchema.index({ blockchainAddress: 1 }, { unique: true });
 VoterSchema.index({ 'rawData.aadharNumber': 1 }, { unique: true, sparse: true });
 VoterSchema.index({ isVerified: 1 });
+VoterSchema.index({ 'qrCode.aadharHash': 1 }, { sparse: true });
+// Add index for voting status
+VoterSchema.index({ isVoted: 1 });
+VoterSchema.index({ 'qrCode.expiresAt': 1 });
 
-module.exports = mongoose.model('Voter', VoterSchema); 
+module.exports = mongoose.model('Voter', VoterSchema);
